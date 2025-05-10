@@ -1,0 +1,9 @@
+Dit is een testbestand om de ultra-vereenvoudigde documentverwerking te testen. 
+
+We hebben het hele document processing systeem drastisch vereenvoudigd door:
+1. Alle embedding-gerelateerde code te verwijderen
+2. De chunking-methode te vereenvoudigen
+3. Memory management zo eenvoudig mogelijk te maken 
+4. Alle complexe timeout-logica te verwijderen
+
+Dit zou moeten resulteren in een veel snellere en betrouwbaardere verwerking van documenten, zonder CPU-spikes of memory leaks.

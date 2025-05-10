@@ -1,0 +1,1 @@
+Dit is een klein tekstbestand voor het testen van uploads met het geoptimaliseerde document processing systeem. De processor slaat nu eerst de tekstchunks op en markeert het document als verwerkt, voordat het de zware embedding generatie aanpakt.

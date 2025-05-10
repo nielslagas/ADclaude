@@ -1,0 +1,7 @@
+Dit is een test voor het document upload systeem dat nu volledig is omzeild.
+
+We slaan nu bestanden onmiddellijk op en markeren ze direct als "processed" in het API endpoint, 
+zonder ze door te sturen naar de celery worker voor verwerking. 
+
+Dit is een tijdelijke oplossing om uploads te laten werken, terwijl we werken aan een meer permanente oplossing
+voor de document processing pipeline.

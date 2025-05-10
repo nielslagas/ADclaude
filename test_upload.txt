@@ -1,0 +1,6 @@
+Dit is een testdocument om te controleren of uploads en verwerking nu goed werken.
+
+We hebben de documentchunker aangepast om een eenvoudiger chunking algoritme te gebruiken dat niet vastloopt.
+Daarnaast hebben we de Celery task timeouts verhoogd om langere verwerkingstijden toe te staan.
+
+Deze aanpassingen zouden moeten voorkomen dat documenten blijven hangen in de verwerkingsstatus.
