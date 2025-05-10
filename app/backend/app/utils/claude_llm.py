@@ -34,14 +34,14 @@ class ClaudeModel:
     A wrapper for Claude that mimics the interface of Google's GenerativeModel class.
     """
     def __init__(self, 
-                model_name: str = "claude-3-7-sonnet-20240229",
+                model_name: str = "claude-3-7-sonnet-20250219",
                 safety_settings: Optional[Dict[str, str]] = None,
                 generation_config: Optional[Dict[str, Any]] = None):
         """
         Initialize a Claude model with similar parameters to Google's GenerativeModel.
         
         Args:
-            model_name: The Claude model to use (default: claude-3-7-sonnet-20240229)
+            model_name: The Claude model to use (default: claude-3-7-sonnet-20250219)
             safety_settings: Safety settings (ignored for Claude, but kept for API compatibility)
             generation_config: Generation settings like temperature, max_tokens, etc.
         """
