@@ -23,7 +23,7 @@ const handleLogout = async () => {
     <div class="navbar-menu">
       <template v-if="isLoggedIn">
         <router-link to="/cases">Mijn Cases</router-link>
-        <router-link to="/audio">Audio Opname</router-link>
+        <router-link to="/profile">Mijn Profiel</router-link>
         <a href="#" @click.prevent="handleLogout">Uitloggen</a>
       </template>
       <template v-else>

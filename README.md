@@ -83,16 +83,34 @@ De frontend is nu beschikbaar op http://localhost:5173
 
 ### Belangrijke updates
 
+#### Gebruikersprofielen (mei 2025)
+Er is een compleet gebruikersprofielsysteem toegevoegd dat zorgt voor verbeterde rapportage en branding:
+
+- **Profielbeheer**:
+  - Arbeidsdeskundigen kunnen persoonlijke informatie toevoegen
+  - Bedrijfsgegevens voor in het rapport vastleggen
+  - Professionele informatie, certificeringen en specialisaties bijhouden
+
+- **Logo Upload**:
+  - Mogelijkheid om bedrijfslogo's toe te voegen
+  - Logo's worden automatisch in rapporten opgenomen
+  - Professionele uitstraling in alle rapportages
+
+- **Rapportintegratie**:
+  - Alle profielgegevens worden automatisch in gegenereerde rapporten gebruikt
+  - Contactgegevens, certificeringen en expertise worden correct getoond
+  - Consistente branding voor zowel zelfstandigen als organisaties
+
 #### Hybride RAG Implementatie (mei 2025)
 De document processing en rapport generatie pipeline is volledig vernieuwd met een hybride aanpak die de volgende voordelen biedt:
 
 - **Directe Beschikbaarheid**: Documenten zijn onmiddellijk beschikbaar na upload
-- **Hybride Verwerking**: 
+- **Hybride Verwerking**:
   - Kleine documenten worden direct naar het LLM gestuurd voor optimale resultaten
   - Grote documenten gebruiken de RAG-pipeline met vector search
   - Automatische intelligente selectie van de beste methode
 
-- **Asynchrone Vectorisatie**: 
+- **Asynchrone Vectorisatie**:
   - Embeddings worden op de achtergrond gegenereerd zonder de gebruikersinterface te blokkeren
   - Documenten krijgen geleidelijk verbeterde semantische zoekfunctionaliteit
   - Prioritering van embeddings generatie op basis van documentgrootte
@@ -106,25 +124,38 @@ Deze hybride aanpak zorgt voor een optimale balans tussen gebruiksvriendelijkhei
 
 #### Technische Details
 
-1. **Documentgrootte Classificatie**:
+1. **Gebruikersprofielen Implementatie**:
+   - PostgreSQL schema met user_profile en profile_logo tabellen
+   - Automatische creatie van profielen bij eerste login
+   - Wizardinterface voor stapsgewijze profilering
+   - Volledig responsieve UI voor alle apparaten
+
+2. **Bedrijfslogo Integratie**:
+   - Veilige opslag van bedrijfslogo's in geïsoleerde storage
+   - Automatische formaat-optimalisatie voor rapporten
+   - Streaming file uploads met voortgangsindicatie
+   - Ondersteuning voor alle gangbare afbeeldingsformaten
+
+3. **Documentgrootte Classificatie**:
    - Kleine documenten (<20.000 tekens): Direct LLM-benadering met hoge prioriteit embeddings
    - Middelgrote documenten (<60.000 tekens): Hybride aanpak met medium prioriteit embeddings
    - Grote documenten (>60.000 tekens): RAG-pipeline met lage prioriteit embeddings
 
-2. **Intelligent Chunking**:
+4. **Intelligent Chunking**:
    - Paragraafgebaseerd chunking behoudt de semantische eenheden
    - Dynamische overlap gebaseerd op documentstructuur
    - Metadata verrijking met document- en chunkinformatie
 
-3. **Asynchrone Verwerking**:
+5. **Asynchrone Verwerking**:
    - Documenten worden direct als 'processed' gemarkeerd
    - Embeddings worden asynchroon gegenereerd met prioriteitsqueue
    - Status-updates naar 'enhanced' wanneer embeddings beschikbaar zijn
 
-4. **Verbeterde Rapportgeneratie**:
+6. **Verbeterde Rapportgeneratie**:
    - Intelligente selectie tussen directe LLM- en RAG-aanpak
    - Context-aware prompt engineering voor optimale resultaten
    - Fallback-mechanismen voor robuuste werking
+   - Automatische integratie van profielgegevens en branding
 
 ### Debugging Tools
 
@@ -138,6 +169,28 @@ Voor het debuggen van API calls en authenticatie issues, bezoek de debug pagina 
 ### Authentication
 
 De applicatie gebruikt een lokale JWT-gebaseerde authenticatie voor ontwikkeling. Elke gebruikersnaam en wachtwoord wordt geaccepteerd in de lokale omgeving.
+
+### Profielbeheer
+
+Na het inloggen kun je je profiel beheren via de "Mijn Profiel" link in de navigatiebalk. Hier kun je:
+
+1. **Persoonlijke gegevens invullen**:
+   - Naam, functie, en biografische informatie
+   - Deze gegevens worden gebruikt in rapporten
+
+2. **Bedrijfsinformatie toevoegen**:
+   - Bedrijfsnaam, contactgegevens, en adres
+   - Deze worden gebruikt in de header van rapporten
+
+3. **Professionele informatie beheren**:
+   - Certificeringen en registratienummers toevoegen
+   - Specialisaties definiëren voor betere rapportgeneratie
+
+4. **Logo uploaden**:
+   - Bedrijfslogo's en afbeeldingen voor in rapporten
+   - Ondersteunt JPG, PNG, GIF en SVG formaten
+
+Het volledige profiel wordt automatisch gebruikt bij het genereren van arbeidskundige rapporten.
 
 ### Foutopsporing
 

@@ -655,5 +655,239 @@ class DatabaseService:
         print(f"Processed report data for update: {processed_data}")
         return self.update_row("report", report_id, processed_data)
 
+    # User Profile methods
+    def get_user_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a user profile by user ID
+        """
+        try:
+            # Try using the pg function if it exists
+            query = """
+                SELECT * FROM get_user_profile(:user_id);
+            """
+
+            with self.engine.connect() as connection:
+                try:
+                    result = connection.execute(text(query), {"user_id": user_id})
+                    row = result.fetchone()
+                    if row:
+                        return self._row_to_dict(row)
+                except SQLAlchemyError as e:
+                    # If the function doesn't exist, fall back to standard query
+                    print(f"get_user_profile function error, using fallback: {str(e)}")
+
+            # Fallback query if the function doesn't exist
+            query = """
+                SELECT
+                    p.id as profile_id,
+                    p.user_id,
+                    p.first_name,
+                    p.last_name,
+                    p.display_name,
+                    p.job_title,
+                    p.company_name,
+                    p.company_description,
+                    p.company_address,
+                    p.company_postal_code,
+                    p.company_city,
+                    p.company_country,
+                    p.company_phone,
+                    p.company_email,
+                    p.company_website,
+                    p.certification,
+                    p.registration_number,
+                    p.specializations,
+                    p.bio,
+                    l.id as logo_id,
+                    l.storage_path as logo_path,
+                    p.created_at,
+                    p.updated_at
+                FROM
+                    user_profile p
+                LEFT JOIN
+                    profile_logo l ON p.id = l.profile_id
+                WHERE
+                    p.user_id = :user_id;
+            """
+
+            with self.engine.connect() as connection:
+                result = connection.execute(text(query), {"user_id": user_id})
+                row = result.fetchone()
+                return self._row_to_dict(row) if row else None
+
+        except SQLAlchemyError as e:
+            print(f"Database error in get_user_profile: {str(e)}")
+            return None
+
+    def create_user_profile(self, user_id: str, profile_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Create a new user profile
+        """
+        try:
+            # First check if a profile already exists
+            existing_profile = self.get_user_profile(user_id)
+            if existing_profile:
+                return self.update_user_profile(existing_profile["profile_id"], profile_data)
+
+            # Try using the pg function if it exists
+            query = """
+                SELECT create_user_profile(
+                    :user_id,
+                    :first_name,
+                    :last_name,
+                    :company_name
+                ) as profile_id;
+            """
+
+            with self.engine.connect() as connection:
+                try:
+                    result = connection.execute(
+                        text(query),
+                        {
+                            "user_id": user_id,
+                            "first_name": profile_data.get("first_name"),
+                            "last_name": profile_data.get("last_name"),
+                            "company_name": profile_data.get("company_name")
+                        }
+                    )
+                    profile_id = result.fetchone()[0]
+                    connection.commit()
+
+                    # If we have more data, update the profile
+                    if len(profile_data) > 3:
+                        return self.update_user_profile(profile_id, profile_data)
+
+                    # Otherwise, just get the profile
+                    return self.get_row_by_id("user_profile", profile_id)
+
+                except SQLAlchemyError as e:
+                    print(f"create_user_profile function error, using fallback: {str(e)}")
+
+            # Fallback: Create profile directly
+            data = {
+                "user_id": user_id,
+                **profile_data
+            }
+
+            # Create the profile record
+            return self.create_row("user_profile", data)
+
+        except SQLAlchemyError as e:
+            print(f"Database error in create_user_profile: {str(e)}")
+            return None
+
+    def update_user_profile(self, profile_id: str, profile_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Update an existing user profile
+        """
+        try:
+            # Add updated_at timestamp
+            if 'updated_at' not in profile_data:
+                profile_data['updated_at'] = datetime.utcnow().isoformat()
+
+            # Handle specializations array
+            if 'specializations' in profile_data and isinstance(profile_data['specializations'], list):
+                # Convert array for PostgreSQL
+                profile_data['specializations'] = f"ARRAY{profile_data['specializations']}"
+
+            return self.update_row("user_profile", profile_id, profile_data)
+
+        except SQLAlchemyError as e:
+            print(f"Database error in update_user_profile: {str(e)}")
+            return None
+
+    def save_profile_logo(self, profile_id: str, file_name: str, file_content: bytes,
+                        mime_type: str, size: int) -> Optional[Dict[str, Any]]:
+        """
+        Save a profile logo
+        """
+        try:
+            # Create storage path
+            logo_dir = os.path.join(settings.STORAGE_PATH, "profile_logos")
+            os.makedirs(logo_dir, exist_ok=True)
+
+            # Generate unique filename
+            unique_filename = f"{uuid.uuid4()}_{file_name}"
+            storage_path = os.path.join(logo_dir, unique_filename)
+
+            # Save the file
+            with open(storage_path, "wb") as f:
+                f.write(file_content)
+
+            # Check if this profile already has a logo
+            existing_logos = self.get_rows("profile_logo", {"profile_id": profile_id})
+
+            if existing_logos:
+                # Update existing logo
+                logo_id = existing_logos[0]["id"]
+
+                # Delete old file if it exists and path is different
+                old_path = existing_logos[0]["storage_path"]
+                if old_path != storage_path and os.path.exists(old_path):
+                    try:
+                        os.remove(old_path)
+                    except Exception as e:
+                        print(f"Error removing old logo file: {str(e)}")
+
+                # Update logo record
+                return self.update_row("profile_logo", logo_id, {
+                    "file_name": file_name,
+                    "storage_path": storage_path,
+                    "mime_type": mime_type,
+                    "size": size,
+                    "updated_at": datetime.utcnow().isoformat()
+                })
+            else:
+                # Create new logo record
+                return self.create_row("profile_logo", {
+                    "profile_id": profile_id,
+                    "file_name": file_name,
+                    "storage_path": storage_path,
+                    "mime_type": mime_type,
+                    "size": size
+                })
+
+        except Exception as e:
+            print(f"Error saving profile logo: {str(e)}")
+            return None
+
+    def get_profile_logo(self, profile_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a profile logo by profile ID
+        """
+        try:
+            logos = self.get_rows("profile_logo", {"profile_id": profile_id})
+            return logos[0] if logos else None
+
+        except SQLAlchemyError as e:
+            print(f"Database error in get_profile_logo: {str(e)}")
+            return None
+
+    def delete_profile_logo(self, logo_id: str) -> bool:
+        """
+        Delete a profile logo
+        """
+        try:
+            # Get the logo first to find the file path
+            logo = self.get_row_by_id("profile_logo", logo_id)
+            if logo and "storage_path" in logo:
+                # Delete the file
+                try:
+                    if os.path.exists(logo["storage_path"]):
+                        os.remove(logo["storage_path"])
+                except Exception as e:
+                    print(f"Error removing logo file: {str(e)}")
+
+            # Delete the record
+            return self.delete_row("profile_logo", logo_id)
+
+        except SQLAlchemyError as e:
+            print(f"Database error in delete_profile_logo: {str(e)}")
+            return False
+
 # Create a singleton instance
 db_service = DatabaseService()
+
+# Export a function to get the database service instance
+def get_database_service():
+    return db_service
