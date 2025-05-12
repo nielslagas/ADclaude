@@ -16,3 +16,7 @@ psycopg2-binary>=2.9.9
 pgvector>=0.2.5
 anthropic>=0.20.0
 openai>=1.30.0
+openai-whisper>=20240930
+numba>=0.57.0
+ffmpeg-python>=0.2.0
+torch>=2.0.0
