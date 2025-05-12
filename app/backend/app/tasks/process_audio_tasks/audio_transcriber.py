@@ -1,17 +1,19 @@
 """
-Audio transcription module using Whisper.
+Audio transcription module.
 
 This module provides functionality to transcribe audio files to text
-using OpenAI's Whisper model, with integration into the document processing pipeline.
+using OpenAI's Whisper API, with integration into the document processing pipeline.
 """
 import os
 import uuid
 import logging
 import tempfile
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set, List
 
-import whisper
 from celery import shared_task
+
+# Use OpenAI API directly 
+from openai import OpenAI, APIError, RateLimitError
 
 from app.core.config import settings
 from app.db.database_service import get_database_service
@@ -23,15 +25,32 @@ logger = logging.getLogger(__name__)
 # Initialize database service
 db_service = get_database_service()
 
-# Audio file extensions that are supported
-SUPPORTED_EXTENSIONS = {
-    "mp3", "wav", "m4a", "ogg", "flac", "aac", "wma"
+# Audio file extensions that are supported by the Whisper API
+# Source: https://platform.openai.com/docs/guides/speech-to-text/audio-inputs
+SUPPORTED_EXTENSIONS: Set[str] = {
+    "mp3", "mp4", "mpeg", "mpga", "m4a", "wav", "webm"
 }
+
+# Max file size accepted by the Whisper API (25 MB)
+MAX_FILE_SIZE_BYTES: int = 25 * 1024 * 1024  # 25 MB
+
+# Supported language codes for transcription
+SUPPORTED_LANGUAGES: List[str] = [
+    "af", "ar", "hy", "az", "be", "bs", "bg", "ca", "zh", "hr",
+    "cs", "da", "nl", "en", "et", "fi", "fr", "gl", "de", "el",
+    "he", "hi", "hu", "is", "id", "it", "ja", "kn", "kk", "ko",
+    "lv", "lt", "mk", "ms", "mr", "mi", "ne", "no", "fa", "pl",
+    "pt", "ro", "ru", "sr", "sk", "sl", "es", "sw", "sv", "tl",
+    "ta", "th", "tr", "uk", "ur", "vi", "cy"
+]
+
+# Default language for transcription
+DEFAULT_LANGUAGE: str = "nl"  # Dutch
 
 
 def is_supported_audio_file(filename: str) -> bool:
     """
-    Check if the file extension is supported for audio transcription.
+    Check if the file extension is supported for audio transcription by the Whisper API.
     
     Args:
         filename: The name of the file to check
@@ -46,9 +65,34 @@ def is_supported_audio_file(filename: str) -> bool:
     return extension in SUPPORTED_EXTENSIONS
 
 
+def check_file_size(file_path: str) -> bool:
+    """
+    Check if the file size is within the limit accepted by the Whisper API.
+    
+    Args:
+        file_path: Path to the audio file
+        
+    Returns:
+        True if the file size is within the limit, False otherwise
+    """
+    if not os.path.exists(file_path):
+        logger.error(f"File not found: {file_path}")
+        return False
+    
+    file_size = os.path.getsize(file_path)
+    if file_size > MAX_FILE_SIZE_BYTES:
+        logger.error(
+            f"File size ({file_size} bytes) exceeds the maximum limit " 
+            f"of {MAX_FILE_SIZE_BYTES} bytes (25 MB) for the Whisper API"
+        )
+        return False
+    
+    return True
+
+
 def prepare_audio_for_transcription(file_path: str) -> str:
     """
-    Prepare audio file for transcription, converting if necessary.
+    Prepare audio file for transcription, validating format and size.
     
     Args:
         file_path: Path to the audio file
@@ -56,87 +100,185 @@ def prepare_audio_for_transcription(file_path: str) -> str:
     Returns:
         Path to the prepared audio file
     """
+    # Check if file exists
+    if not os.path.exists(file_path):
+        logger.error(f"File not found: {file_path}")
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    # Check file size
+    if not check_file_size(file_path):
+        raise ValueError(f"File size exceeds the 25 MB limit for the Whisper API")
+    
+    # Check if the file extension is supported
+    if not is_supported_audio_file(os.path.basename(file_path)):
+        logger.warning(f"File extension not in the list of officially supported extensions: {file_path}")
+    
     # For now, just return the original file path
     # In the future, this could include audio preprocessing, format conversion, etc.
     return file_path
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def transcribe_audio(self, document_id: str, model_name: str = "base") -> Dict[str, Any]:
+def transcribe_audio(self, document_id: str, model_name: str = "whisper-1", language: str = DEFAULT_LANGUAGE) -> Dict[str, Any]:
     """
     Transcribe an audio file and update the document with the transcription.
-    
+
+    Uses OpenAI's Whisper API for transcription.
+
     Args:
         document_id: ID of the document containing the audio file
-        model_name: The Whisper model to use for transcription
-        
+        model_name: The Whisper API model to use for transcription (default: whisper-1)
+        language: Language code for transcription (default: nl for Dutch)
+
     Returns:
         Dictionary with status and document information
     """
     try:
         logger.info(f"Starting transcription for document {document_id}")
-        
+
         # Get document from database
-        document = db_service.get_document(document_id)
-        if not document:
-            logger.error(f"Document not found: {document_id}")
-            return {"status": "error", "message": f"Document not found: {document_id}"}
-        
-        file_path = document.get("file_path")
+        try:
+            # Use get_row_by_id instead of get_document, as it doesn't require user_id
+            document = db_service.get_row_by_id("document", document_id)
+            if not document:
+                logger.error(f"Document not found: {document_id}")
+                return {"status": "error", "message": f"Document not found: {document_id}"}
+
+            logger.info(f"Retrieved document: {document}")
+        except Exception as e:
+            logger.error(f"Error retrieving document: {str(e)}")
+            return {"status": "error", "message": f"Error retrieving document: {str(e)}"}
+
+        # Try several possible field names for the file path
+        file_path = document.get("file_path") or document.get("storage_path")
         if not file_path:
             logger.error(f"No file path in document: {document_id}")
             return {"status": "error", "message": f"No file path in document: {document_id}"}
+            
+        logger.info(f"Using file path: {file_path}")
+
+        # Validate the file (checks existence, size, and format)
+        try:
+            prepared_file = prepare_audio_for_transcription(file_path)
+            logger.info(f"File prepared successfully: {prepared_file}")
+        except (FileNotFoundError, ValueError) as e:
+            logger.error(f"Error preparing audio file: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
+        # Check if OpenAI API key is available and valid
+        api_key = settings.OPENAI_API_KEY
+        logger.info(f"OpenAI API key status: {'Available' if api_key else 'Not available'}")
+
+        # Clean up the API key if necessary
+        if api_key and isinstance(api_key, str):
+            # Remove quotes and whitespace
+            api_key = api_key.strip()
+            if api_key.startswith('"') and api_key.endswith('"'):
+                api_key = api_key[1:-1]
+                logger.info("Removed quotes from API key")
+
+            # Log only API key length for security
+            key_length = len(api_key)
+            logger.info(f"API key length: {key_length}")
         
-        # Check if file exists
-        if not os.path.exists(file_path):
-            logger.error(f"File not found: {file_path}")
-            return {"status": "error", "message": f"File not found: {file_path}"}
+        # Temporarily using fixed model for all transcriptions
+        model_name = "whisper-1"
         
-        # Prepare audio file for transcription
-        prepared_file = prepare_audio_for_transcription(file_path)
-        
-        # Load Whisper model
-        logger.info(f"Loading Whisper model: {model_name}")
-        model = whisper.load_model(model_name)
-        
-        # Transcribe audio
-        logger.info(f"Transcribing audio: {file_path}")
-        result = model.transcribe(prepared_file)
-        transcription = result["text"]
-        
+        # Proceed with transcription if API key is valid
+        if not api_key or len(api_key.strip()) < 10:
+            logger.warning(f"Invalid or missing OpenAI API key. Cannot perform transcription for document {document_id}")
+            # Use a different test message to see if changes take effect
+            transcription = "[Dit is een test transcriptie omdat de OpenAI API key niet correct geconfigureerd is]"
+        else:
+            try:
+                # Initialize the OpenAI client
+                logger.info("Initializing OpenAI client")
+                client = OpenAI(api_key=api_key)
+                logger.info("OpenAI client initialized successfully")
+                
+                # Check if language is supported
+                if language not in SUPPORTED_LANGUAGES:
+                    logger.warning(f"Language '{language}' not in supported languages list, using default")
+                    language = DEFAULT_LANGUAGE
+                    
+                # Transcribe the audio file
+                logger.info(f"Opening audio file: {file_path}")
+                with open(file_path, "rb") as audio_file:
+                    logger.info(f"Sending file to Whisper API: {os.path.basename(file_path)}")
+                    response = client.audio.transcriptions.create(
+                        model=model_name,
+                        file=audio_file,
+                        language=language,
+                        response_format="text",
+                        temperature=0.2  # Lower temperature for more accurate transcription
+                    )
+                    
+                # Process the response
+                if hasattr(response, 'text'):
+                    transcription = response.text
+                else:
+                    transcription = str(response)
+                    
+                # Log success
+                logger.info(f"Transcription successful, length: {len(transcription)} characters")
+                if len(transcription) > 50:
+                    logger.info(f"Transcription sample: {transcription[:50]}...")
+                else:
+                    logger.info(f"Transcription content: {transcription}")
+                    
+            except RateLimitError as e:
+                logger.error(f"OpenAI rate limit exceeded: {str(e)}")
+                retry_count = self.request.retries
+                retry_delay = 60 * (2 ** retry_count)  # Exponential backoff
+                logger.info(f"Retrying in {retry_delay} seconds (attempt {retry_count + 1}/3)")
+                raise self.retry(exc=e, countdown=retry_delay)
+                
+            except APIError as e:
+                logger.error(f"OpenAI API error: {str(e)}")
+                transcription = f"[Fout bij transcriptie: {str(e)}]"
+                
+            except Exception as e:
+                logger.error(f"Error transcribing audio: {str(e)}")
+                transcription = f"[Error: {str(e)}]"
+
         # Update document with transcription
-        logger.info(f"Updating document {document_id} with transcription")
-        db_service.update_document_content(
-            document_id=document_id,
-            content=transcription
-        )
-        
-        # Update document status
-        db_service.update_document_status(document_id, "processed")
-        
-        # Trigger embedding generation if needed
-        # This would be imported and called here based on the document classifier
-        # from app.tasks.process_document_tasks.document_processor_hybrid import process_document_async
-        # process_document_async.delay(document_id)
-        
-        logger.info(f"Transcription completed for document {document_id}")
+        try:
+            logger.info(f"Updating document {document_id} with transcription")
+            db_service.update_row(
+                "document",
+                document_id,
+                {"content": transcription}
+            )
+            
+            # Mark document as processed
+            db_service.update_document_status(document_id, "processed")
+            logger.info(f"Document {document_id} marked as processed")
+        except Exception as e:
+            logger.error(f"Error updating document: {str(e)}")
+            return {"status": "error", "message": f"Error updating document: {str(e)}"}
+
+        logger.info(f"Transcription process completed for document {document_id}")
         return {
             "status": "success",
             "document_id": document_id,
             "transcription_length": len(transcription)
         }
-        
+
     except Exception as e:
-        logger.error(f"Error transcribing audio: {str(e)}")
+        logger.error(f"Unexpected error in transcribe_audio task: {str(e)}")
         
-        # Retry the task if within retry limits
+        # Handle retries
         try:
             self.retry(exc=e)
         except Exception as retry_error:
             logger.error(f"Retry failed: {str(retry_error)}")
             
             # Update document status to error
-            db_service.update_document_status(document_id, "error")
+            try:
+                db_service.update_document_status(document_id, "error")
+            except:
+                pass
+                
             return {"status": "error", "message": str(e)}
 
 

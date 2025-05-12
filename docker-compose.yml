@@ -1,4 +1,4 @@
-version: '3.8'
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
 
 services:
   # Database service with pgvector extension
@@ -56,6 +56,7 @@ services:
       - SUPABASE_URL=http://localhost:8000
       - SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
       - STORAGE_PATH=/app/storage
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - redis
       - db
@@ -80,6 +81,7 @@ services:
       - SUPABASE_URL=http://localhost:8000
       - SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
       - STORAGE_PATH=/app/storage
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - redis
       - db

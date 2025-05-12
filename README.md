@@ -32,7 +32,10 @@ De AD-Rapport Generator helpt arbeidsdeskundigen bij het opstellen van gestructu
 ### Vereisten
 - Docker en Docker Compose
 - Node.js 16+
-- Google AI API key (optioneel, voor Gemini embeddings en generatie)
+- API keys voor een van de volgende LLM providers:
+  - Google AI API key
+  - OpenAI API key
+  - Anthropic API key
 
 ### Installatie met Lokale Database
 
@@ -42,11 +45,21 @@ git clone <repository-url>
 cd ai-arbeidsdeskundige_claude
 ```
 
-2. Maak een `.env` bestand in de root van het project:
+2. Maak een `.env` bestand in de root van het project (zie `docker-compose.example.env` voor een template):
 ```
-GOOGLE_API_KEY=your_google_api_key_here  # Optioneel, voor document embeddings en rapport generatie
-STORAGE_PATH=/app/storage                # Plek voor opslag van documenten
+# Kies een provider (google, openai of anthropic)
+LLM_PROVIDER=anthropic
+
+# API keys voor verschillende providers
+GOOGLE_API_KEY=your_google_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Plek voor opslag van documenten
+STORAGE_PATH=/app/storage
 ```
+
+Raadpleeg [SECURITY.md](SECURITY.md) voor richtlijnen over het veilig beheren van API keys en andere gevoelige informatie.
 
 3. Start de applicatie met Docker Compose:
 ```bash
