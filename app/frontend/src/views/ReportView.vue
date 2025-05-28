@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useReportStore } from '@/stores/report';
 import { useCaseStore } from '@/stores/case';
+import { useNotificationStore } from '@/stores/notification';
 import { marked } from 'marked'; // Dit moet geïnstalleerd worden via npm install marked
 import CommentSystem from '@/components/CommentSystem.vue';
 
@@ -10,9 +11,9 @@ const route = useRoute();
 const router = useRouter();
 const reportStore = useReportStore();
 const caseStore = useCaseStore();
+const notificationStore = useNotificationStore();
 
 const loading = ref(false);
-const error = ref<string | null>(null);
 const processingStatusTimer = ref<number | null>(null);
 const reportId = ref(route.params.id as string);
 const activeSection = ref<string | null>(null);
@@ -23,6 +24,66 @@ const loadingSources = ref(false);
 const sources = ref<any[]>([]);
 const showPreviewDialog = ref(false);
 const downloadingReport = ref(false);
+const isLoadingInitial = ref(true);
+
+// Computed properties
+const isReportGenerating = computed(() => {
+  return reportStore.currentReport?.status === 'processing' || 
+         reportStore.currentReport?.status === 'generating';
+});
+
+const isReportComplete = computed(() => {
+  return reportStore.currentReport?.status === 'generated';
+});
+
+const isReportFailed = computed(() => {
+  return reportStore.currentReport?.status === 'failed';
+});
+
+const reportSections = computed(() => {
+  if (!reportStore.currentReport?.content) return [];
+  return Object.keys(reportStore.currentReport.content);
+});
+
+const hasReportContent = computed(() => {
+  return reportSections.value.length > 0;
+});
+
+const currentSectionContent = computed(() => {
+  if (!activeSection.value || !reportStore.currentReport?.content) return '';
+  return reportStore.currentReport.content[activeSection.value] || '';
+});
+
+const statusIndicator = computed(() => {
+  const status = reportStore.currentReport?.status;
+  switch (status) {
+    case 'processing':
+    case 'generating':
+      return {
+        text: 'Wordt gegenereerd...',
+        class: 'status-processing',
+        icon: '⏳'
+      };
+    case 'generated':
+      return {
+        text: 'Gereed',
+        class: 'status-success',
+        icon: '✅'
+      };
+    case 'failed':
+      return {
+        text: 'Mislukt',
+        class: 'status-error',
+        icon: '❌'
+      };
+    default:
+      return {
+        text: status || 'Onbekend',
+        class: 'status-default',
+        icon: '❓'
+      };
+  }
+});
 
 // Fetch report details
 const fetchReport = async () => {
@@ -56,10 +117,15 @@ const fetchReport = async () => {
       activeSection.value = Object.keys(report.content)[0];
     }
   } catch (err) {
-    error.value = 'Er is een fout opgetreden bij het ophalen van het rapport.';
+    notificationStore.addNotification({
+      type: 'error',
+      title: 'Fout bij laden rapport',
+      message: 'Er is een fout opgetreden bij het ophalen van het rapport.'
+    });
     console.error(err);
   } finally {
     loading.value = false;
+    isLoadingInitial.value = false;
   }
 };
 
@@ -116,6 +182,12 @@ const deleteReport = async () => {
   try {
     await reportStore.deleteReport(reportId.value);
     
+    notificationStore.addNotification({
+      type: 'success',
+      title: 'Rapport verwijderd',
+      message: 'Het rapport is succesvol verwijderd.'
+    });
+    
     // Navigate back to case detail
     if (caseStore.currentCase) {
       router.push(`/cases/${caseStore.currentCase.id}`);
@@ -123,7 +195,11 @@ const deleteReport = async () => {
       router.push('/cases');
     }
   } catch (err) {
-    error.value = 'Er is een fout opgetreden bij het verwijderen van het rapport.';
+    notificationStore.addNotification({
+      type: 'error',
+      title: 'Fout bij verwijderen',
+      message: 'Er is een fout opgetreden bij het verwijderen van het rapport.'
+    });
     console.error(err);
   }
 };
@@ -142,8 +218,18 @@ const regenerateSection = async (sectionId: string) => {
     
     // Refresh report data
     await reportStore.fetchReport(reportId.value);
+    
+    notificationStore.addNotification({
+      type: 'success',
+      title: 'Sectie geregenereerd',
+      message: `De sectie "${getSectionTitle(sectionId)}" is succesvol geregenereerd.`
+    });
   } catch (err) {
-    error.value = 'Er is een fout opgetreden bij het regenereren van de sectie.';
+    notificationStore.addNotification({
+      type: 'error',
+      title: 'Fout bij regenereren',
+      message: 'Er is een fout opgetreden bij het regenereren van de sectie.'
+    });
     console.error(err);
   } finally {
     regeneratingSection.value = null;
@@ -195,7 +281,11 @@ const fetchSources = async () => {
     sources.value = dummySources;
   } catch (err) {
     console.error('Error fetching sources:', err);
-    error.value = 'Er is een fout opgetreden bij het ophalen van de bronnen.';
+    notificationStore.addNotification({
+      type: 'error',
+      title: 'Fout bij laden bronnen',
+      message: 'Er is een fout opgetreden bij het ophalen van de bronnen.'
+    });
   } finally {
     loadingSources.value = false;
   }
@@ -205,10 +295,18 @@ const fetchSources = async () => {
 const copySectionContent = async (content: string) => {
   try {
     await navigator.clipboard.writeText(content);
-    alert('Inhoud gekopieerd naar klembord');
+    notificationStore.addNotification({
+      type: 'success',
+      title: 'Gekopieerd',
+      message: 'Sectie-inhoud is gekopieerd naar het klembord.'
+    });
   } catch (err) {
     console.error('Error copying to clipboard:', err);
-    error.value = 'Kan niet kopiëren naar klembord';
+    notificationStore.addNotification({
+      type: 'error',
+      title: 'Kopiëren mislukt',
+      message: 'Kan niet kopiëren naar klembord.'
+    });
   }
 };
 
@@ -319,10 +417,17 @@ const downloadReport = async (layout = 'standaard') => {
     // Download with selected layout
     await reportStore.downloadReportAsDocx(reportId.value, layout);
 
-    // Show a brief success message
-    alert('Het rapport wordt gedownload.');
+    notificationStore.addNotification({
+      type: 'success',
+      title: 'Download gestart',
+      message: 'Het rapport wordt gedownload.'
+    });
   } catch (err) {
-    error.value = 'Er is een fout opgetreden bij het downloaden van het rapport.';
+    notificationStore.addNotification({
+      type: 'error',
+      title: 'Download mislukt',
+      message: 'Er is een fout opgetreden bij het downloaden van het rapport.'
+    });
     console.error(err);
   } finally {
     downloadingReport.value = false;
@@ -339,7 +444,11 @@ const previewFullReport = async () => {
     // Show the preview modal
     showPreviewDialog.value = true;
   } catch (err) {
-    error.value = 'Er is een fout opgetreden bij het voorvertonen van het rapport.';
+    notificationStore.addNotification({
+      type: 'error',
+      title: 'Preview mislukt',
+      message: 'Er is een fout opgetreden bij het voorvertonen van het rapport.'
+    });
     console.error(err);
   }
 };
@@ -428,219 +537,262 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="report-detail-container">
-    <div v-if="loading && !reportStore.currentReport" class="loading">
-      <p>Rapport wordt geladen...</p>
+  <div class="report-view">
+    <!-- Loading Skeleton -->
+    <div v-if="isLoadingInitial" class="loading-skeleton">
+      <div class="skeleton-header">
+        <div class="skeleton-title"></div>
+        <div class="skeleton-actions">
+          <div class="skeleton-button"></div>
+          <div class="skeleton-button"></div>
+        </div>
+      </div>
+      <div class="skeleton-content">
+        <div class="skeleton-card">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+          <div class="skeleton-line"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+        </div>
+      </div>
     </div>
 
+    <!-- Error State -->
     <div v-else-if="!reportStore.currentReport" class="error-state">
+      <div class="error-icon">📄</div>
       <h2>Rapport niet gevonden</h2>
       <p>Het opgevraagde rapport bestaat niet of je hebt geen toegang.</p>
-      <button @click="router.push('/cases')" class="btn btn-primary">Terug naar Cases</button>
+      <button @click="router.push('/cases')" class="btn btn-primary">
+        <span class="icon">←</span>
+        Terug naar Cases
+      </button>
     </div>
 
-    <div v-else class="report-content">
+    <!-- Report Content -->
+    <div v-else class="report-container">
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb">
+        <router-link to="/cases" class="breadcrumb-item">Cases</router-link>
+        <span class="breadcrumb-separator">›</span>
+        <router-link 
+          v-if="caseStore.currentCase"
+          :to="`/cases/${caseStore.currentCase.id}`" 
+          class="breadcrumb-item"
+        >
+          {{ caseStore.currentCase.title }}
+        </router-link>
+        <span v-if="caseStore.currentCase" class="breadcrumb-separator">›</span>
+        <span class="breadcrumb-current">{{ reportStore.currentReport.title }}</span>
+      </nav>
+
       <!-- Report Header -->
       <div class="report-header">
-        <div class="report-title-section">
-          <h1>{{ reportStore.currentReport.title }}</h1>
-          <span 
-            class="report-status" 
-            :class="getStatusClass(reportStore.currentReport.status)"
-          >
-            {{ reportStore.currentReport.status }}
-          </span>
-        </div>
-        
-        <div class="report-actions">
-          <!-- Document actions -->
-          <div class="action-group">
+        <div class="header-content">
+          <div class="title-section">
+            <h1>{{ reportStore.currentReport.title }}</h1>
+            <div class="status-badge" :class="statusIndicator.class">
+              <span class="status-icon">{{ statusIndicator.icon }}</span>
+              <span class="status-text">{{ statusIndicator.text }}</span>
+            </div>
+          </div>
+          
+          <div class="header-actions">
+            <button 
+              v-if="isReportComplete"
+              @click="previewFullReport" 
+              class="btn btn-outline"
+            >
+              <span class="icon">👁️</span>
+              Preview
+            </button>
             <button
-              v-if="reportStore.currentReport.status === 'generated'"
+              v-if="isReportComplete"
               @click="openDownloadDialog"
               class="btn btn-primary"
               :disabled="downloadingReport"
             >
-              <span class="icon">📥</span>
-              <span v-if="downloadingReport">Bezig...</span>
-              <span v-else>Downloaden als DOCX</span>
+              <div v-if="downloadingReport" class="loading-spinner small"></div>
+              <span v-else class="icon">💾</span>
+              {{ downloadingReport ? 'Bezig...' : 'Download' }}
             </button>
-            <button 
-              v-if="reportStore.currentReport.status === 'generated'"
-              @click="previewFullReport" 
-              class="btn btn-secondary"
-            >
-              <span class="icon">👁️</span> Preview Rapport
-            </button>
-          </div>
-          
-          <!-- Navigation and destructive actions -->
-          <div class="action-group">
-            <button 
-              v-if="caseStore.currentCase"
-              @click="router.push(`/cases/${caseStore.currentCase.id}`)" 
-              class="btn btn-outline"
-            >
-              <span class="icon">🔙</span> Terug naar Case
-            </button>
-            <button 
-              v-else
-              @click="router.push('/cases')" 
-              class="btn btn-outline"
-            >
-              <span class="icon">🔙</span> Terug naar Cases
-            </button>
-            <button @click="deleteReport" class="btn btn-danger">
-              <span class="icon">🗑️</span> Verwijderen
+            <button @click="deleteReport" class="btn btn-danger-outline">
+              <span class="icon">🗑️</span>
+              Verwijderen
             </button>
           </div>
         </div>
       </div>
 
-      <!-- Alert for errors -->
-      <div v-if="error" class="alert alert-danger">
-        {{ error }}
-        <button @click="error = null" class="close-btn">&times;</button>
-      </div>
-
-      <!-- Processing Status -->
-      <div 
-        v-if="reportStore.currentReport.status === 'processing' || reportStore.currentReport.status === 'generating'" 
-        class="processing-status"
-      >
-        <div class="spinner"></div>
-        <p>Rapport wordt gegenereerd. Dit kan enkele minuten duren.</p>
-      </div>
-
-      <!-- Error Status -->
-      <div 
-        v-if="reportStore.currentReport.status === 'failed'" 
-        class="error-status"
-      >
-        <p>Rapport generatie is mislukt.</p>
-        <p v-if="reportStore.currentReport.error" class="error-message">
-          {{ reportStore.currentReport.error }}
-        </p>
-      </div>
-
-      <!-- Report Details -->
-      <div class="report-details">
-        <div class="detail-card">
-          <h3>Rapport Informatie</h3>
-          <div class="detail-item">
-            <div class="detail-label">Titel</div>
-            <div class="detail-value">{{ reportStore.currentReport.title }}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Template</div>
-            <div class="detail-value">
-              {{ reportStore.templates[reportStore.currentReport.template_id]?.name || reportStore.currentReport.template_id }}
+      <!-- Processing Status Card -->
+      <div v-if="isReportGenerating" class="status-card processing">
+        <div class="status-content">
+          <div class="loading-spinner"></div>
+          <div class="status-info">
+            <h3>Rapport wordt gegenereerd</h3>
+            <p>Dit kan enkele minuten duren. De pagina wordt automatisch bijgewerkt.</p>
+            <div class="progress-bar">
+              <div class="progress-fill"></div>
             </div>
           </div>
-          <div class="detail-item">
-            <div class="detail-label">Status</div>
-            <div class="detail-value" :class="getStatusClass(reportStore.currentReport.status)">
-              {{ reportStore.currentReport.status }}
-            </div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Aangemaakt</div>
-            <div class="detail-value">{{ formatDate(reportStore.currentReport.created_at) }}</div>
-          </div>
-          <div class="detail-item" v-if="reportStore.currentReport.updated_at">
-            <div class="detail-label">Laatst bijgewerkt</div>
-            <div class="detail-value">{{ formatDate(reportStore.currentReport.updated_at) }}</div>
-          </div>
-          
-          <!-- No buttons needed here as we have them in the header -->
         </div>
+      </div>
 
-        <div class="detail-card" v-if="caseStore.currentCase">
-          <h3>Case Informatie</h3>
-          <div class="detail-item">
-            <div class="detail-label">Case</div>
-            <div class="detail-value">{{ caseStore.currentCase.title }}</div>
-          </div>
-          <div class="detail-item" v-if="caseStore.currentCase.description">
-            <div class="detail-label">Beschrijving</div>
-            <div class="detail-value">{{ caseStore.currentCase.description }}</div>
+      <!-- Error Status Card -->
+      <div v-if="isReportFailed" class="status-card error">
+        <div class="status-content">
+          <div class="status-icon error">❌</div>
+          <div class="status-info">
+            <h3>Rapport generatie mislukt</h3>
+            <p v-if="reportStore.currentReport.error" class="error-details">
+              {{ reportStore.currentReport.error }}
+            </p>
+            <p v-else>Er is een fout opgetreden bij het genereren van het rapport.</p>
           </div>
         </div>
       </div>
 
-      <!-- Report Content (For generated reports) -->
+      <!-- Report Information Cards -->
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="card-header">
+            <h3>Rapport Details</h3>
+          </div>
+          <div class="card-content">
+            <div class="info-row">
+              <span class="info-label">Template</span>
+              <span class="info-value">
+                {{ reportStore.templates[reportStore.currentReport.template_id]?.name || reportStore.currentReport.template_id }}
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Status</span>
+              <span class="info-value">
+                <span class="status-badge" :class="statusIndicator.class">
+                  {{ statusIndicator.text }}
+                </span>
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Aangemaakt</span>
+              <span class="info-value">{{ formatDate(reportStore.currentReport.created_at) }}</span>
+            </div>
+            <div v-if="reportStore.currentReport.updated_at" class="info-row">
+              <span class="info-label">Bijgewerkt</span>
+              <span class="info-value">{{ formatDate(reportStore.currentReport.updated_at) }}</span>
+            </div>
+          </div>
+        </div>
 
-      <div 
-        v-if="reportStore.currentReport.status === 'generated' && reportStore.currentReport.content && Object.keys(reportStore.currentReport.content).length > 0" 
-        class="report-sections"
-      >
-        <h2>Rapport Inhoud</h2>
+        <div v-if="caseStore.currentCase" class="info-card">
+          <div class="card-header">
+            <h3>Case Informatie</h3>
+          </div>
+          <div class="card-content">
+            <div class="info-row">
+              <span class="info-label">Case</span>
+              <span class="info-value">{{ caseStore.currentCase.title }}</span>
+            </div>
+            <div v-if="caseStore.currentCase.description" class="info-row">
+              <span class="info-label">Beschrijving</span>
+              <span class="info-value">{{ caseStore.currentCase.description }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Documenten</span>
+              <span class="info-value">{{ caseStore.currentCase.documents?.length || 0 }} documenten</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Report Content Section -->
+      <div v-if="isReportComplete && hasReportContent" class="content-section">
+        <div class="content-header">
+          <h2>Rapport Inhoud</h2>
+          <div class="content-controls">
+            <span class="section-count">{{ reportSections.length }} secties</span>
+          </div>
+        </div>
         
         <!-- Sections Navigation -->
         <div class="sections-nav">
           <button 
-            v-for="(content, sectionId) in reportStore.currentReport.content" 
+            v-for="sectionId in reportSections" 
             :key="sectionId"
-            class="section-nav-btn"
+            class="section-tab"
             :class="{ active: activeSection === sectionId }"
             @click="activeSection = sectionId"
           >
-            {{ getSectionTitle(sectionId) }}
+            <span class="tab-title">{{ getSectionTitle(sectionId) }}</span>
+            <span v-if="regeneratingSection === sectionId" class="tab-status loading">
+              <div class="loading-spinner tiny"></div>
+            </span>
           </button>
         </div>
         
         <!-- Active Section Content -->
-        <div v-if="activeSection && reportStore.currentReport.content[activeSection]" class="section-content">
-          <div class="section-header">
-            <h3>{{ getSectionTitle(activeSection) }}</h3>
-            <div class="section-actions">
+        <div v-if="activeSection && currentSectionContent" class="section-viewer">
+          <div class="viewer-header">
+            <div class="section-title">
+              <h3>{{ getSectionTitle(activeSection) }}</h3>
+              <span class="word-count">{{ currentSectionContent.split(' ').length }} woorden</span>
+            </div>
+            <div class="viewer-actions">
               <button 
-                @click="copySectionContent(reportStore.currentReport.content[activeSection])" 
-                class="btn btn-primary"
+                @click="copySectionContent(currentSectionContent)" 
+                class="btn btn-outline btn-sm"
+                title="Kopieer sectie-inhoud"
               >
-                <span class="icon">📋</span> Kopiëren
+                <span class="icon">📋</span>
               </button>
               <button 
                 @click="regenerateSection(activeSection)"
-                class="btn btn-secondary"
+                class="btn btn-outline btn-sm"
                 :disabled="regeneratingSection === activeSection"
+                title="Regenereer deze sectie"
               >
-                <span class="icon">🔄</span>
-                <span v-if="regeneratingSection === activeSection">Bezig...</span>
-                <span v-else>Regenereren</span>
+                <div v-if="regeneratingSection === activeSection" class="loading-spinner tiny"></div>
+                <span v-else class="icon">🔄</span>
               </button>
               <button 
                 @click="toggleMarkdown = !toggleMarkdown"
-                class="btn btn-outline"
+                class="btn btn-outline btn-sm"
+                :class="{ active: toggleMarkdown }"
+                title="Schakel tussen opgemaakt en markdown weergave"
               >
-                <span class="icon">🔍</span> {{ toggleMarkdown ? 'Gewone weergave' : 'Markdown weergave' }}
+                <span class="icon">{{ toggleMarkdown ? '📝' : '👁️' }}</span>
               </button>
               <button 
                 v-if="reportStore.currentReport.metadata?.sections?.[activeSection]?.chunk_ids?.length"
                 @click="openSourcesDialog"
-                class="btn btn-outline"
+                class="btn btn-outline btn-sm"
+                title="Bekijk bronnen"
               >
-                <span class="icon">📄</span> Bronnen
+                <span class="icon">📄</span>
+                Bronnen
               </button>
             </div>
           </div>
           
-          <div class="section-text">
-            <!-- Toggle between formatted and raw markdown view -->
-            <div v-if="!toggleMarkdown" class="formatted-content">
-              <div v-html="formatMarkdown(reportStore.currentReport.content[activeSection])"></div>
+          <div class="viewer-content">
+            <div v-if="!toggleMarkdown" class="content-formatted">
+              <div v-html="formatMarkdown(currentSectionContent)"></div>
             </div>
-            <pre v-else class="markdown-content">{{ reportStore.currentReport.content[activeSection] }}</pre>
+            <pre v-else class="content-markdown">{{ currentSectionContent }}</pre>
           </div>
 
-          <!-- Comment System -->
-          <CommentSystem 
-            v-if="reportStore.currentReport.status === 'generated'"
-            :report-id="reportStore.currentReport.id"
-            :section-id="activeSection"
-            :include-internal="true"
-            @comments-updated="handleCommentsUpdated"
-          />
+          <!-- Comments Section -->
+          <div class="comments-section">
+            <CommentSystem 
+              :report-id="reportStore.currentReport.id"
+              :section-id="activeSection"
+              :include-internal="true"
+              @comments-updated="handleCommentsUpdated"
+            />
+          </div>
           
           <!-- Sources Dialog -->
           <div v-if="showSourcesDialog" class="sources-dialog">
@@ -676,125 +828,138 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          
+        </div>
+        
+        <!-- No Section Selected -->
+        <div v-else class="no-section-selected">
+          <div class="empty-state">
+            <div class="empty-icon">📖</div>
+            <h3>Selecteer een sectie</h3>
+            <p>Kies een sectie uit de navigatie om de inhoud te bekijken.</p>
+          </div>
+        </div>
+      </div>
 
-          <!-- Preview Report Dialog -->
-          <div v-if="showPreviewDialog" class="preview-dialog">
-            <div class="dialog-content preview-content">
-              <div class="dialog-header">
-                <h3>Rapport Preview: {{ reportStore.currentReport.title }}</h3>
-                <div class="dialog-header-actions">
-                  <button @click="printPreview" class="btn btn-outline">
-                    <span class="icon">🖨️</span> Afdrukken
-                  </button>
-                  <button @click="openDownloadDialog" class="btn btn-primary">
-                    <span class="icon">📥</span> Downloaden
-                  </button>
-                  <button @click="closePreviewDialog" class="close-btn" style="font-size: 1.5rem; cursor: pointer;">&times;</button>
+      <!-- Empty Content State -->
+      <div v-else-if="isReportComplete && !hasReportContent" class="empty-content">
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <h3>Geen inhoud beschikbaar</h3>
+          <p>Dit rapport heeft nog geen gegenereerde inhoud.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Report Dialog -->
+    <div v-if="showPreviewDialog" class="preview-dialog">
+      <div class="dialog-content preview-content">
+        <div class="dialog-header">
+          <h3>Rapport Preview: {{ reportStore.currentReport.title }}</h3>
+          <div class="dialog-header-actions">
+            <button @click="printPreview" class="btn btn-outline">
+              <span class="icon">🖨️</span> Afdrukken
+            </button>
+            <button @click="openDownloadDialog" class="btn btn-primary">
+              <span class="icon">📥</span> Downloaden
+            </button>
+            <button @click="closePreviewDialog" class="close-btn" style="font-size: 1.5rem; cursor: pointer;">&times;</button>
+          </div>
+        </div>
+        <div class="dialog-body">
+          <!-- Report Content Preview -->
+          <div class="preview-report">
+            <!-- Title Page -->
+            <div class="preview-title-page">
+              <h1>Arbeidsdeskundig Rapport</h1>
+              <h2>{{ reportStore.currentReport.title }}</h2>
+              <p class="preview-date">{{ formatDate(reportStore.currentReport.created_at) }}</p>
+
+              <!-- Profile Information (if available) -->
+              <div v-if="reportStore.currentReport.metadata?.user_profile" class="preview-profile-info">
+                <div class="preview-profile-header">
+                  <div v-if="reportStore.currentReport.metadata.user_profile.logo_url" class="preview-logo">
+                    <img :src="reportStore.currentReport.metadata.user_profile.logo_url" alt="Logo" />
+                  </div>
+                  <div class="preview-profile-details">
+                    <p v-if="reportStore.currentReport.metadata.user_profile.display_name" class="preview-profile-name">
+                      {{ reportStore.currentReport.metadata.user_profile.display_name }}
+                    </p>
+                    <p v-else-if="reportStore.currentReport.metadata.user_profile.first_name && reportStore.currentReport.metadata.user_profile.last_name" class="preview-profile-name">
+                      {{ reportStore.currentReport.metadata.user_profile.first_name }} {{ reportStore.currentReport.metadata.user_profile.last_name }}
+                    </p>
+                    <p v-if="reportStore.currentReport.metadata.user_profile.job_title" class="preview-profile-jobtitle">
+                      {{ reportStore.currentReport.metadata.user_profile.job_title }}
+                    </p>
+                    <p v-if="reportStore.currentReport.metadata.user_profile.certification" class="preview-profile-certification">
+                      {{ reportStore.currentReport.metadata.user_profile.certification }}
+                      <span v-if="reportStore.currentReport.metadata.user_profile.registration_number">
+                        - {{ reportStore.currentReport.metadata.user_profile.registration_number }}
+                      </span>
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div class="dialog-body">
-                <!-- Report Content Preview -->
-                <div class="preview-report">
-                  <!-- Title Page -->
-                  <div class="preview-title-page">
-                    <h1>Arbeidsdeskundig Rapport</h1>
-                    <h2>{{ reportStore.currentReport.title }}</h2>
-                    <p class="preview-date">{{ formatDate(reportStore.currentReport.created_at) }}</p>
 
-                    <!-- Profile Information (if available) -->
-                    <div v-if="reportStore.currentReport.metadata?.user_profile" class="preview-profile-info">
-                      <div class="preview-profile-header">
-                        <div v-if="reportStore.currentReport.metadata.user_profile.logo_url" class="preview-logo">
-                          <img :src="reportStore.currentReport.metadata.user_profile.logo_url" alt="Logo" />
-                        </div>
-                        <div class="preview-profile-details">
-                          <p v-if="reportStore.currentReport.metadata.user_profile.display_name" class="preview-profile-name">
-                            {{ reportStore.currentReport.metadata.user_profile.display_name }}
-                          </p>
-                          <p v-else-if="reportStore.currentReport.metadata.user_profile.first_name && reportStore.currentReport.metadata.user_profile.last_name" class="preview-profile-name">
-                            {{ reportStore.currentReport.metadata.user_profile.first_name }} {{ reportStore.currentReport.metadata.user_profile.last_name }}
-                          </p>
-                          <p v-if="reportStore.currentReport.metadata.user_profile.job_title" class="preview-profile-jobtitle">
-                            {{ reportStore.currentReport.metadata.user_profile.job_title }}
-                          </p>
-                          <p v-if="reportStore.currentReport.metadata.user_profile.certification" class="preview-profile-certification">
-                            {{ reportStore.currentReport.metadata.user_profile.certification }}
-                            <span v-if="reportStore.currentReport.metadata.user_profile.registration_number">
-                              - {{ reportStore.currentReport.metadata.user_profile.registration_number }}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
+                <div v-if="reportStore.currentReport.metadata.user_profile.company_name" class="preview-company-info">
+                  <p class="preview-company-name">{{ reportStore.currentReport.metadata.user_profile.company_name }}</p>
 
-                      <div v-if="reportStore.currentReport.metadata.user_profile.company_name" class="preview-company-info">
-                        <p class="preview-company-name">{{ reportStore.currentReport.metadata.user_profile.company_name }}</p>
-
-                        <div v-if="reportStore.currentReport.metadata.user_profile.company_address ||
-                                   reportStore.currentReport.metadata.user_profile.company_postal_code ||
-                                   reportStore.currentReport.metadata.user_profile.company_city"
-                             class="preview-company-address">
-                          <p>
-                            {{ reportStore.currentReport.metadata.user_profile.company_address }}<br v-if="reportStore.currentReport.metadata.user_profile.company_address">
-                            {{ reportStore.currentReport.metadata.user_profile.company_postal_code }} {{ reportStore.currentReport.metadata.user_profile.company_city }}
-                          </p>
-                        </div>
-
-                        <div class="preview-company-contact">
-                          <p v-if="reportStore.currentReport.metadata.user_profile.company_phone">
-                            Tel: {{ reportStore.currentReport.metadata.user_profile.company_phone }}
-                          </p>
-                          <p v-if="reportStore.currentReport.metadata.user_profile.company_email">
-                            Email: {{ reportStore.currentReport.metadata.user_profile.company_email }}
-                          </p>
-                          <p v-if="reportStore.currentReport.metadata.user_profile.company_website">
-                            Website: {{ reportStore.currentReport.metadata.user_profile.company_website }}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                  <div v-if="reportStore.currentReport.metadata.user_profile.company_address ||
+                             reportStore.currentReport.metadata.user_profile.company_postal_code ||
+                             reportStore.currentReport.metadata.user_profile.company_city"
+                       class="preview-company-address">
+                    <p>
+                      {{ reportStore.currentReport.metadata.user_profile.company_address }}<br v-if="reportStore.currentReport.metadata.user_profile.company_address">
+                      {{ reportStore.currentReport.metadata.user_profile.company_postal_code }} {{ reportStore.currentReport.metadata.user_profile.company_city }}
+                    </p>
                   </div>
-                  
-                  <!-- Table of Contents -->
-                  <div class="preview-toc">
-                    <h2>Inhoudsopgave</h2>
-                    <ol class="toc-list">
-                      <li v-for="sectionId in getOrderedSections()" :key="sectionId">
-                        {{ getSectionTitle(sectionId) }}
-                      </li>
-                    </ol>
-                  </div>
-                  
-                  <!-- Report Sections -->
-                  <!-- Use proper section order -->
-                  <template v-if="getOrderedSections().length > 0">
-                    <div 
-                      v-for="sectionId in getOrderedSections()" 
-                      :key="sectionId" 
-                      class="preview-section"
-                    >
-                      <h2>{{ getSectionTitle(sectionId) }}</h2>
-                      <div class="preview-section-content">
-                        <div v-html="formatMarkdown(reportStore.currentReport.content[sectionId])"></div>
-                      </div>
-                    </div>
-                  </template>
-                  <div v-else class="no-content">
-                    <p>Er is nog geen inhoud beschikbaar in dit rapport.</p>
+
+                  <div class="preview-company-contact">
+                    <p v-if="reportStore.currentReport.metadata.user_profile.company_phone">
+                      Tel: {{ reportStore.currentReport.metadata.user_profile.company_phone }}
+                    </p>
+                    <p v-if="reportStore.currentReport.metadata.user_profile.company_email">
+                      Email: {{ reportStore.currentReport.metadata.user_profile.company_email }}
+                    </p>
+                    <p v-if="reportStore.currentReport.metadata.user_profile.company_website">
+                      Website: {{ reportStore.currentReport.metadata.user_profile.company_website }}
+                    </p>
                   </div>
                 </div>
               </div>
-              <div class="dialog-footer">
-                <button @click="closePreviewDialog" class="btn btn-primary">
-                  Sluiten
-                </button>
+            </div>
+            
+            <!-- Table of Contents -->
+            <div class="preview-toc">
+              <h2>Inhoudsopgave</h2>
+              <ol class="toc-list">
+                <li v-for="sectionId in getOrderedSections()" :key="sectionId">
+                  {{ getSectionTitle(sectionId) }}
+                </li>
+              </ol>
+            </div>
+            
+            <!-- Report Sections -->
+            <!-- Use proper section order -->
+            <template v-if="getOrderedSections().length > 0">
+              <div 
+                v-for="sectionId in getOrderedSections()" 
+                :key="sectionId" 
+                class="preview-section"
+              >
+                <h2>{{ getSectionTitle(sectionId) }}</h2>
+                <div class="preview-section-content">
+                  <div v-html="formatMarkdown(reportStore.currentReport.content[sectionId])"></div>
+                </div>
               </div>
+            </template>
+            <div v-else class="no-content">
+              <p>Er is nog geen inhoud beschikbaar in dit rapport.</p>
             </div>
           </div>
         </div>
-        
-        <div v-else class="no-section-selected">
-          <p>Selecteer een sectie om de inhoud te bekijken.</p>
+        <div class="dialog-footer">
+          <button @click="closePreviewDialog" class="btn btn-primary">
+            Sluiten
+          </button>
         </div>
       </div>
     </div>
@@ -902,463 +1067,684 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.report-detail-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1rem;
+/* Modern Design System Variables */
+:root {
+  --primary-color: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: #eff6ff;
+  --success-color: #10b981;
+  --success-light: #ecfdf5;
+  --error-color: #ef4444;
+  --error-light: #fef2f2;
+  --warning-color: #f59e0b;
+  --warning-light: #fffbeb;
+  --text-color: #374151;
+  --text-light: #6b7280;
+  --text-lighter: #9ca3af;
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
+  --bg-color: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-lg: 12px;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
 }
 
-.loading, .error-state {
+/* Base Layout */
+.report-view {
+  min-height: 100vh;
+  background-color: var(--bg-secondary);
+  padding: var(--spacing-lg);
+}
+
+/* Loading Skeleton */
+.loading-skeleton {
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: var(--bg-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow);
+}
+
+.skeleton-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.skeleton-title {
+  height: 32px;
+  width: 300px;
+  background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--border-light) 50%, var(--bg-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-actions {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.skeleton-button {
+  height: 40px;
+  width: 120px;
+  background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--border-light) 50%, var(--bg-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.skeleton-card {
+  padding: var(--spacing-lg);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+}
+
+.skeleton-line {
+  height: 16px;
+  background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--border-light) 50%, var(--bg-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.skeleton-line.short {
+  width: 60%;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Error State */
+.error-state {
+  max-width: 600px;
+  margin: var(--spacing-2xl) auto;
   text-align: center;
-  padding: 3rem 1rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  margin-top: 2rem;
+  padding: var(--spacing-2xl);
+  background-color: var(--bg-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.error-icon {
+  font-size: 4rem;
+  margin-bottom: var(--spacing-lg);
 }
 
 .error-state h2 {
-  color: #dc2626;
-  margin-bottom: 1rem;
+  color: var(--text-color);
+  margin-bottom: var(--spacing-md);
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
+.error-state p {
+  color: var(--text-light);
+  margin-bottom: var(--spacing-xl);
+}
+
+/* Main Container */
+.report-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  font-size: 0.875rem;
+}
+
+.breadcrumb-item {
+  color: var(--text-light);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.breadcrumb-item:hover {
+  color: var(--primary-color);
+}
+
+.breadcrumb-separator {
+  color: var(--text-lighter);
+}
+
+.breadcrumb-current {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+/* Report Header */
 .report-header {
+  background-color: var(--bg-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow);
+  margin-bottom: var(--spacing-xl);
+}
+
+.header-content {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 1rem;
+  gap: var(--spacing-lg);
 }
 
-.report-title-section {
-  display: flex;
+.title-section {
+  flex: 1;
+}
+
+.title-section h1 {
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--text-color);
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.status-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.report-title-section h1 {
-  margin: 0;
-  color: var(--primary-color);
-  font-size: 1.75rem;
-  word-break: break-word;
-}
-
-.report-status {
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: 9999px;
   font-size: 0.75rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 999px;
-  font-weight: 500;
-  white-space: nowrap;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.report-actions {
+.status-badge.status-processing {
+  background-color: var(--warning-light);
+  color: var(--warning-color);
+}
+
+.status-badge.status-success {
+  background-color: var(--success-light);
+  color: var(--success-color);
+}
+
+.status-badge.status-error {
+  background-color: var(--error-light);
+  color: var(--error-color);
+}
+
+.status-badge.status-default {
+  background-color: var(--bg-tertiary);
+  color: var(--text-light);
+}
+
+.header-actions {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  flex-shrink: 0;
 }
 
-.action-group {
-  display: flex;
-  gap: 0.75rem;
+/* Status Cards */
+.status-card {
+  background-color: var(--bg-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+  box-shadow: var(--shadow);
+  border-left: 4px solid;
 }
 
-.alert {
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1.5rem;
-  position: relative;
+.status-card.processing {
+  border-left-color: var(--warning-color);
+  background: linear-gradient(135deg, var(--warning-light) 0%, var(--bg-color) 100%);
 }
 
-.alert-danger {
-  background-color: #fde8e8;
-  color: #ef4444;
-  border: 1px solid #f87171;
+.status-card.error {
+  border-left-color: var(--error-color);
+  background: linear-gradient(135deg, var(--error-light) 0%, var(--bg-color) 100%);
 }
 
-.close-btn {
-  position: absolute;
-  right: 1rem;
-  top: 1rem;
-  background: none;
-  border: none;
-  font-size: 1.25rem;
-  cursor: pointer;
-  color: inherit;
-}
-
-.processing-status {
+.status-content {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1.5rem;
-  background-color: #eff6ff;
-  border-radius: 8px;
-  margin-bottom: 2rem;
+  gap: var(--spacing-lg);
 }
 
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 3px solid #dbeafe;
-  border-radius: 50%;
-  border-top-color: #3b82f6;
-  animation: spin 1s linear infinite;
+.status-icon {
+  font-size: 2rem;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.processing-status p {
-  margin: 0;
-  color: #3b82f6;
-  font-weight: 500;
-}
-
-.error-status {
-  padding: 1.5rem;
-  background-color: #fef2f2;
-  border-radius: 8px;
-  margin-bottom: 2rem;
-}
-
-.error-status p {
-  margin: 0 0 0.5rem 0;
-  color: #dc2626;
-  font-weight: 500;
-}
-
-.error-status .error-message {
-  font-weight: normal;
-  font-family: monospace;
-  background-color: #fee2e2;
-  padding: 0.75rem;
-  border-radius: 4px;
-  white-space: pre-wrap;
-  overflow-x: auto;
-}
-
-.report-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.detail-card {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  padding: 1.5rem;
-  height: fit-content;
-}
-
-.detail-card h3 {
-  margin-top: 0;
-  margin-bottom: 1.25rem;
-  color: var(--primary-color);
+.status-info h3 {
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--text-color);
   font-size: 1.25rem;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0.75rem;
+  font-weight: 600;
 }
 
-.detail-item {
-  display: flex;
-  margin-bottom: 1rem;
-}
-
-.detail-label {
-  width: 40%;
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.detail-value {
-  width: 60%;
-  color: var(--text-color);
-  word-break: break-word;
-}
-
-.detail-actions {
-  margin-top: 1.5rem;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.detail-hint {
-  margin-top: 1.5rem;
-  text-align: center;
-  color: var(--primary-color);
-  font-size: 0.9rem;
-  font-style: italic;
-}
-
-.clickable {
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.clickable:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-.back-to-case {
-  display: inline-block;
-  background-color: #f3f4f6;
-  color: var(--primary-color);
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  font-weight: 500;
-}
-
-.report-sections {
-  margin-top: 2rem;
-}
-
-.report-sections h2 {
-  margin-top: 0;
-  margin-bottom: 1.5rem;
-  color: var(--primary-color);
-  font-size: 1.5rem;
-}
-
-.sections-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.section-nav-btn {
-  padding: 0.75rem 1.25rem;
-  background-color: #f3f4f6;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: var(--text-color);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.section-nav-btn:hover {
-  background-color: #e5e7eb;
-}
-
-.section-nav-btn.active {
-  background-color: #dbeafe;
-  color: #1d4ed8;
-}
-
-.section-content {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.section-header h3 {
-  margin: 0;
-  color: var(--primary-color);
-  font-size: 1.25rem;
-}
-
-.section-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.section-text {
-  line-height: 1.7;
-  color: var(--text-color);
-  font-size: 1rem;
-}
-
-.no-section-selected {
-  text-align: center;
-  padding: 3rem 1rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-}
-
-.no-section-selected p {
+.status-info p {
   margin: 0;
   color: var(--text-light);
 }
 
-.status-processing {
-  color: #f59e0b;
+.error-details {
+  background-color: var(--error-light);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  margin-top: var(--spacing-sm);
 }
 
-.status-success {
-  color: #10b981;
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: var(--spacing-md);
 }
 
-.status-error {
-  color: #ef4444;
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--warning-color), var(--primary-color));
+  border-radius: 2px;
+  animation: progress 2s ease-in-out infinite;
 }
 
-.status-default {
-  color: #6b7280;
+@keyframes progress {
+  0% { width: 0%; }
+  50% { width: 70%; }
+  100% { width: 100%; }
 }
 
-.btn {
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  font-size: 1rem;
+/* Info Grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.info-card {
+  background-color: var(--bg-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.info-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.card-header {
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-color) 100%);
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.card-header h3 {
+  margin: 0;
+  color: var(--primary-color);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.card-content {
+  padding: var(--spacing-lg);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-weight: 500;
+  color: var(--text-light);
+  flex-shrink: 0;
+  width: 40%;
+}
+
+.info-value {
+  color: var(--text-color);
+  text-align: right;
+  word-break: break-word;
+  flex: 1;
+}
+
+/* Content Section */
+.content-section {
+  background-color: var(--bg-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: var(--spacing-xl);
+}
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xl);
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-color) 100%);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.content-header h2 {
+  margin: 0;
+  color: var(--primary-color);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.content-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.section-count {
+  background-color: var(--primary-color);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Sections Navigation */
+.sections-nav {
+  display: flex;
+  flex-wrap: wrap;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+}
+
+.section-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: none;
+  border: none;
+  color: var(--text-light);
   font-weight: 500;
   cursor: pointer;
-  border: none;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
+  border-bottom: 3px solid transparent;
   white-space: nowrap;
 }
 
-.btn-primary {
-  background-color: #3b82f6;
-  color: white;
-}
-
-.btn-primary:hover {
-  background-color: #2563eb;
-}
-
-.btn-primary:disabled {
-  background-color: #93c5fd;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background-color: #e5e7eb;
-  color: #4b5563;
-}
-
-.btn-secondary:hover {
-  background-color: #d1d5db;
-}
-
-.btn-secondary:disabled {
-  background-color: #f3f4f6;
-  color: #9ca3af;
-  cursor: not-allowed;
-}
-
-.btn-danger {
-  background-color: #ef4444;
-  color: white;
-}
-
-.btn-danger:hover {
-  background-color: #dc2626;
-}
-
-.btn-outline {
-  background-color: transparent;
-  border: 1px solid #e5e7eb;
-  color: #4b5563;
-}
-
-.btn-outline:hover {
-  background-color: #f3f4f6;
-}
-
-.icon {
-  margin-right: 0.25rem;
-  font-size: 0.9rem;
-}
-
-.formatted-content {
-  line-height: 1.7;
+.section-tab:hover {
+  background-color: var(--border-light);
   color: var(--text-color);
 }
 
-.formatted-content h1,
-.formatted-content h2,
-.formatted-content h3,
-.formatted-content h4,
-.formatted-content h5,
-.formatted-content h6 {
+.section-tab.active {
+  background-color: var(--bg-color);
   color: var(--primary-color);
-  margin-top: 1.5rem;
-  margin-bottom: 1rem;
+  border-bottom-color: var(--primary-color);
+}
+
+.tab-title {
+  font-size: 0.875rem;
+}
+
+.tab-status.loading {
+  display: flex;
+  align-items: center;
+}
+
+/* Section Viewer */
+.section-viewer {
+  padding: var(--spacing-xl);
+}
+
+.viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.section-title h3 {
+  margin: 0 0 var(--spacing-xs) 0;
+  color: var(--text-color);
+  font-size: 1.25rem;
   font-weight: 600;
 }
 
-.formatted-content h1 { font-size: 1.5rem; }
-.formatted-content h2 { font-size: 1.35rem; }
-.formatted-content h3 { font-size: 1.25rem; }
-.formatted-content h4 { font-size: 1.15rem; }
-.formatted-content h5 { font-size: 1.05rem; }
-.formatted-content h6 { font-size: 1rem; }
-
-.formatted-content p {
-  margin-bottom: 1rem;
+.word-count {
+  color: var(--text-lighter);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
-.formatted-content ul,
-.formatted-content ol {
-  margin-bottom: 1rem;
-  padding-left: 1.5rem;
+.viewer-actions {
+  display: flex;
+  gap: var(--spacing-sm);
 }
 
-.formatted-content li {
-  margin-bottom: 0.5rem;
+.viewer-content {
+  margin-bottom: var(--spacing-xl);
 }
 
-.formatted-content table {
-  border-collapse: collapse;
-  width: 100%;
-  margin-bottom: 1rem;
+.content-formatted {
+  line-height: 1.7;
+  color: var(--text-color);
+  font-size: 1rem;
 }
 
-.formatted-content th,
-.formatted-content td {
-  border: 1px solid #e5e7eb;
-  padding: 0.75rem;
-  text-align: left;
-}
-
-.formatted-content th {
-  background-color: #f3f4f6;
+.content-formatted h1,
+.content-formatted h2,
+.content-formatted h3,
+.content-formatted h4,
+.content-formatted h5,
+.content-formatted h6 {
+  color: var(--primary-color);
+  margin-top: var(--spacing-xl);
+  margin-bottom: var(--spacing-md);
   font-weight: 600;
 }
 
-.formatted-content blockquote {
-  border-left: 4px solid #d1d5db;
-  padding-left: 1rem;
-  margin-left: 0;
-  margin-bottom: 1rem;
-  color: #6b7280;
-  font-style: italic;
+.content-formatted p {
+  margin-bottom: var(--spacing-md);
 }
 
-.markdown-content {
-  background-color: #f8f9fa;
-  padding: 1rem;
-  border-radius: 4px;
-  color: #374151;
-  font-family: monospace;
+.content-formatted ul,
+.content-formatted ol {
+  margin-bottom: var(--spacing-md);
+  padding-left: var(--spacing-xl);
+}
+
+.content-formatted li {
+  margin-bottom: var(--spacing-sm);
+}
+
+.content-markdown {
+  background-color: var(--bg-secondary);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius);
+  color: var(--text-color);
+  font-family: 'Courier New', monospace;
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-x: auto;
   margin: 0;
+  border: 1px solid var(--border-color);
 }
 
-.sources-dialog, .preview-dialog {
+/* Comments Section */
+.comments-section {
+  border-top: 1px solid var(--border-color);
+  padding-top: var(--spacing-xl);
+}
+
+/* Empty States */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-2xl) var(--spacing-lg);
+  color: var(--text-light);
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--text-color);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--text-light);
+}
+
+.no-section-selected,
+.empty-content {
+  background-color: var(--bg-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  margin-bottom: var(--spacing-xl);
+}
+
+/* Button System */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.75rem;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background-color: var(--bg-secondary);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.btn-outline.active {
+  background-color: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.btn-danger-outline {
+  background-color: transparent;
+  border: 1px solid var(--error-color);
+  color: var(--error-color);
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.icon {
+  font-size: 0.875em;
+}
+
+/* Loading Spinners */
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border-light);
+  border-radius: 50%;
+  border-top-color: var(--primary-color);
+  animation: spin 1s linear infinite;
+}
+
+.loading-spinner.small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.loading-spinner.tiny {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Dialogs */
+.sources-dialog,
+.preview-dialog {
   position: fixed;
   top: 0;
   left: 0;
@@ -1368,543 +1754,450 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 100;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
 }
 
 .dialog-content {
   width: 90%;
   max-width: 800px;
-  max-height: 90%;
+  max-height: 90vh;
   background-color: white;
-  border-radius: 8px;
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .preview-content {
-  max-width: 900px;
+  max-width: 1000px;
+  max-height: 95vh;
+}
+
+.preview-report {
+  background: white;
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.preview-title-page {
+  text-align: center;
+  padding: var(--spacing-2xl);
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: var(--spacing-xl);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, white 100%);
+}
+
+.preview-title-page h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-lg);
+  line-height: 1.2;
+}
+
+.preview-date {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xl);
+}
+
+.preview-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-xl);
+}
+
+.preview-profile-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  justify-content: center;
+}
+
+.preview-logo img {
+  max-height: 80px;
+  max-width: 200px;
+  object-fit: contain;
+}
+
+.preview-profile-details {
+  text-align: left;
+}
+
+.preview-profile-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.preview-profile-jobtitle,
+.preview-profile-certification {
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.preview-company-info {
+  text-align: center;
+  padding: var(--spacing-lg);
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+}
+
+.preview-company-name {
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.preview-company-address,
+.preview-company-contact p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: var(--spacing-xs);
+}
+
+.preview-toc {
+  margin: var(--spacing-xl) 0;
+  padding: var(--spacing-lg);
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+}
+
+.preview-toc h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+}
+
+.preview-section {
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: white;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+}
+
+.preview-section h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--primary-light);
+}
+
+.preview-section-content {
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.preview-section-content p {
+  margin-bottom: var(--spacing-md);
+}
+
+.preview-section-content h4 {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: var(--spacing-lg) 0 var(--spacing-sm) 0;
+}
+
+.preview-section-content ul,
+.preview-section-content ol {
+  margin-left: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.preview-section-content li {
+  margin-bottom: var(--spacing-xs);
 }
 
 .dialog-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-color) 100%);
 }
 
 .dialog-header h3 {
   margin: 0;
   color: var(--primary-color);
   font-size: 1.25rem;
-}
-
-.dialog-header-actions {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
+  font-weight: 600;
 }
 
 .dialog-body {
   flex: 1;
-  padding: 1.5rem;
+  padding: var(--spacing-xl);
   overflow-y: auto;
 }
 
 .dialog-footer {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
+  gap: var(--spacing-md);
+  background-color: var(--bg-secondary);
 }
 
-/* Preview styles */
-.preview-report {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.preview-title-page {
-  text-align: center;
-  padding: 3rem 1rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.preview-title-page h1 {
-  font-size: 1.75rem;
-  color: var(--primary-color);
-  margin-bottom: 1rem;
-}
-
-.preview-title-page h2 {
+.close-btn {
+  background: none;
+  border: none;
   font-size: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.preview-date {
-  font-style: italic;
-  color: #6b7280;
-}
-
-.preview-toc {
-  padding: 1rem 0;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.preview-toc h2 {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-  color: var(--primary-color);
-}
-
-.toc-list {
-  padding-left: 2rem;
-}
-
-.toc-list li {
-  margin-bottom: 0.5rem;
-  color: var(--text-color);
-  font-weight: 500;
-}
-
-.preview-section {
-  padding: 1rem 0;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.preview-section h2 {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-  color: var(--primary-color);
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0.5rem;
-}
-
-.preview-section-content {
-  line-height: 1.7;
-}
-
-.no-content {
-  padding: 2rem;
-  text-align: center;
-  color: #6b7280;
-  font-style: italic;
-}
-
-.loading-sources {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 2rem 0;
-}
-
-.no-sources {
-  text-align: center;
-  padding: 2rem 0;
-  color: var(--text-light);
-}
-
-.sources-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.source-item {
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.source-header {
-  background-color: #f3f4f6;
-  padding: 0.75rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.source-meta {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.source-content {
-  padding: 1rem;
-  background-color: white;
-  color: var(--text-color);
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
-
-@media (max-width: 768px) {
-  .report-header, .section-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .report-actions {
-    width: 100%;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .action-group {
-    width: 100%;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  .section-actions {
-    width: 100%;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  .detail-item {
-    flex-direction: column;
-  }
-  
-  .detail-label, .detail-value {
-    width: 100%;
-  }
-  
-  .detail-label {
-    margin-bottom: 0.25rem;
-  }
-  
-  .btn {
-    width: 100%;
-  }
-  
-  .sections-nav {
-    flex-direction: column;
-  }
-  
-  .section-nav-btn {
-    width: 100%;
-    text-align: left;
-  }
-  
-  .dialog-content {
-    width: 95%;
-    max-height: 95%;
-  }
-}
-
-/* Profile styling for report preview */
-.preview-title-page {
-  padding: 2rem;
-  text-align: center;
-  margin-bottom: 2rem;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.preview-title-page h1 {
-  color: var(--primary-color);
-  margin-bottom: 1rem;
-}
-
-.preview-title-page h2 {
-  color: var(--text-color);
-  margin-bottom: 1.5rem;
-}
-
-.preview-date {
-  color: var(--text-light);
-  margin-bottom: 2rem;
-}
-
-.preview-profile-info {
-  margin-top: 3rem;
-  text-align: left;
-  border-top: 1px solid #e0e0e0;
-  padding-top: 2rem;
-}
-
-.preview-profile-header {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.preview-logo {
-  width: 150px;
-  height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.preview-logo img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.preview-profile-details {
-  flex: 1;
-}
-
-.preview-profile-name {
-  font-weight: 600;
-  font-size: 1.1rem;
-  color: var(--text-dark);
-  margin: 0 0 0.25rem 0;
-}
-
-.preview-profile-jobtitle {
-  color: var(--text-color);
-  margin: 0 0 0.25rem 0;
-}
-
-.preview-profile-certification {
-  color: var(--text-color);
-  font-style: italic;
-  margin: 0;
-}
-
-.preview-company-info {
-  border-top: 1px solid #e5e7eb;
-  padding-top: 1rem;
-}
-
-.preview-company-name {
-  font-weight: 600;
-  color: var(--text-dark);
-  margin: 0 0 0.5rem 0;
-}
-
-.preview-company-address p {
-  margin: 0 0 0.5rem 0;
-  color: var(--text-color);
-}
-
-.preview-company-contact p {
-  margin: 0 0 0.25rem 0;
-  color: var(--text-color);
-  font-size: 0.9rem;
-}
-
-/* Download dialog styling */
-.download-dialog .dialog-content {
-  max-width: 650px;
-}
-
-.layout-options {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  margin-top: 1rem;
-}
-
-.layout-option {
-  display: flex;
-  gap: 1.5rem;
-  padding: 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
   cursor: pointer;
+  color: var(--text-light);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
   transition: all 0.2s ease;
 }
 
+.close-btn:hover {
+  background-color: var(--error-light);
+  color: var(--error-color);
+}
+
+/* Layout Preview Styling */
+.layout-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.layout-option {
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+}
+
 .layout-option:hover {
-  background-color: #f8fafc;
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow);
 }
 
 .layout-option.selected {
-  border-color: #3b82f6;
-  background-color: #f0f7ff;
+  border-color: var(--primary-color);
+  background: var(--primary-light);
 }
 
 .layout-preview {
-  width: 180px;
-  height: 120px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  overflow: hidden;
+  margin-bottom: var(--spacing-md);
 }
 
 .layout-preview-image {
-  width: 85%;
-  height: 85%;
-  background-color: white;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  height: 120px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: white;
+  position: relative;
+  overflow: hidden;
 }
 
-.layout-details {
-  flex: 1;
-}
-
-.layout-details h4 {
-  margin: 0 0 0.5rem 0;
-  color: var(--text-dark);
-}
-
-.layout-details p {
-  margin: 0;
-  color: var(--text-color);
-  font-size: 0.9rem;
-}
-
-/* Layout previews */
 .preview-page {
   width: 100%;
   height: 100%;
-  background-color: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 2px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  padding: 8px;
+  background: white;
+  position: relative;
 }
 
-.preview-title, .preview-title-modern, .preview-title-professional {
-  height: 10%;
-  background-color: #f8f9fa;
-  margin: 4px;
-  border-radius: 2px;
+/* Standard Layout */
+.preview-standard .preview-title {
+  height: 12px;
+  background: var(--primary-color);
+  margin-bottom: 6px;
+  width: 60%;
 }
 
-.preview-title-modern {
-  background-color: #dbeafe;
-  height: 12%;
-}
-
-.preview-title-professional {
-  background-color: #1e40af;
-  height: 15%;
-}
-
-.preview-header {
-  height: 15%;
-  background-color: #f9fafb;
-  margin: 0 4px 8px 4px;
-  border-radius: 2px;
+.preview-standard .preview-header {
   display: flex;
   align-items: center;
-}
-
-.preview-header.modern {
-  background-color: #eff6ff;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.preview-header.professional {
-  background-color: #f1f5f9;
-  height: 20%;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .preview-logo-small {
-  width: 20%;
-  height: 80%;
-  background-color: #e5e7eb;
-  margin-left: 5px;
-  border-radius: 2px;
-}
-
-.preview-logo-right {
-  width: 20%;
-  height: 80%;
-  background-color: #3b82f6;
-  margin-right: 5px;
-  border-radius: 2px;
-}
-
-.preview-logo-large {
-  width: 30%;
-  height: 80%;
-  background-color: #334155;
-  margin: 5px;
-  border-radius: 2px;
-}
-
-.preview-company-info {
-  width: 50%;
-  height: 80%;
-  margin: 5px;
-  background-color: #e2e8f0;
+  width: 16px;
+  height: 16px;
+  background: var(--gray-300);
   border-radius: 2px;
 }
 
 .preview-header-text {
-  width: 60%;
-  height: 60%;
-  background-color: #f3f4f6;
-  margin-left: 10px;
-  border-radius: 2px;
-}
-
-.preview-body {
-  height: 75%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0 4px;
-}
-
-.preview-body.professional {
-  height: 65%;
-}
-
-.preview-section-header {
-  height: 8px;
-  background-color: #f3f4f6;
-  width: 40%;
-  margin: 4px 0;
-  border-radius: 1px;
-}
-
-.preview-section-header.modern {
-  background-color: #3b82f6;
-  height: 6px;
-}
-
-.preview-section-header.professional {
-  background-color: #1e293b;
-  width: 50%;
-  height: 10px;
+  height: 3px;
+  background: var(--gray-300);
+  flex: 1;
 }
 
 .preview-line {
-  height: 5px;
-  background-color: #e5e7eb;
-  width: 100%;
-  border-radius: 1px;
-}
-
-.preview-line.modern {
-  height: 4px;
-  background-color: #dbeafe;
-}
-
-.preview-line.professional {
-  height: 6px;
-  background-color: #cbd5e1;
+  height: 2px;
+  background: var(--gray-200);
+  margin-bottom: 3px;
 }
 
 .preview-line.short {
   width: 70%;
 }
 
-.spinner.small {
-  width: 16px;
-  height: 16px;
-  border-width: 2px;
-  margin-right: 0.25rem;
+.preview-section-header {
+  height: 4px;
+  background: var(--primary-light);
+  margin: 6px 0 3px 0;
+  width: 40%;
+}
+
+/* Modern Layout */
+.preview-modern .preview-title-modern {
+  height: 10px;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  margin-bottom: 4px;
+  width: 70%;
+}
+
+.preview-modern .preview-header.modern {
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.preview-logo-right {
+  width: 12px;
+  height: 12px;
+  background: var(--primary-color);
+  border-radius: 50%;
+}
+
+.preview-line.modern {
+  height: 2px;
+  background: var(--gray-300);
+  margin-bottom: 2px;
+}
+
+.preview-section-header.modern {
+  height: 3px;
+  background: var(--primary-color);
+  margin: 4px 0 2px 0;
+  width: 35%;
+}
+
+/* Professional Layout */
+.preview-professional .preview-title-professional {
+  height: 14px;
+  background: var(--gray-800);
+  margin-bottom: 8px;
+  width: 80%;
+}
+
+.preview-professional .preview-header.professional {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.preview-logo-large {
+  width: 20px;
+  height: 8px;
+  background: var(--primary-color);
+}
+
+.preview-company-info {
+  height: 4px;
+  background: var(--gray-300);
+  width: 50%;
+}
+
+.preview-body.professional {
+  border-top: 1px solid var(--border-color);
+  padding-top: 6px;
+}
+
+.preview-section-header.professional {
+  height: 5px;
+  background: var(--gray-800);
+  margin-bottom: 4px;
+  width: 45%;
+}
+
+.preview-line.professional {
+  height: 2px;
+  background: var(--gray-200);
+  margin-bottom: 2px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .report-view {
+    padding: var(--spacing-md);
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sections-nav {
+    flex-direction: column;
+  }
+
+  .section-tab {
+    justify-content: flex-start;
+  }
+
+  .viewer-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-md);
+  }
+
+  .viewer-actions {
+    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+
+  .dialog-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .title-section h1 {
+    font-size: 1.5rem;
+  }
+
+  .status-badge {
+    font-size: 0.625rem;
+  }
+
+  .viewer-actions {
+    flex-direction: column;
+  }
 }
 </style>

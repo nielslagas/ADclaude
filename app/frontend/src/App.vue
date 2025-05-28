@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 import NavBar from '@/components/NavBar.vue'
+import NotificationContainer from '@/components/NotificationContainer.vue'
 </script>
 
 <template>
@@ -41,6 +42,9 @@ import NavBar from '@/components/NavBar.vue'
         </div>
       </div>
     </footer>
+
+    <!-- Notification System -->
+    <NotificationContainer />
   </div>
 </template>
 

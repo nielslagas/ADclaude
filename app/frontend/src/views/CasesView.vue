@@ -2,12 +2,13 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCaseStore } from '@/stores/case';
+import { useNotificationStore } from '@/stores/notification';
 import type { Case, CaseCreate } from '@/types';
 
 const caseStore = useCaseStore();
 const router = useRouter();
+const notificationStore = useNotificationStore();
 const loading = ref(false);
-const error = ref<string | null>(null);
 const showCreateForm = ref(false);
 const newCase = ref<CaseCreate>({
   title: '',
@@ -20,7 +21,7 @@ onMounted(async () => {
   try {
     await caseStore.fetchCases();
   } catch (err) {
-    error.value = 'Er is een fout opgetreden bij het ophalen van cases.';
+    // Error handling is done by the store notification system
     console.error(err);
   } finally {
     loading.value = false;
@@ -41,12 +42,11 @@ const toggleCreateForm = () => {
 
 const createCase = async () => {
   if (!newCase.value.title.trim()) {
-    error.value = 'Titel is verplicht';
+    notificationStore.warning('Validatiefout', 'Titel is verplicht');
     return;
   }
 
   loading.value = true;
-  error.value = null;
 
   try {
     const createdCase = await caseStore.createCase(newCase.value);
@@ -56,7 +56,7 @@ const createCase = async () => {
     // Navigate to the new case
     router.push(`/cases/${createdCase.id}`);
   } catch (err) {
-    error.value = 'Er is een fout opgetreden bij het aanmaken van de case.';
+    // Error handling is done by the store notification system
     console.error(err);
   } finally {
     loading.value = false;
@@ -111,20 +111,6 @@ const getStatusLabel = (status: string): string => {
       </div>
     </div>
 
-    <!-- Error Alert -->
-    <div v-if="error" class="alert alert-danger" role="alert">
-      <div class="alert-content">
-        <svg class="alert-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-        </svg>
-        <span>{{ error }}</span>
-      </div>
-      <button @click="error = null" class="alert-close" aria-label="Sluiten">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z"/>
-        </svg>
-      </button>
-    </div>
 
     <!-- Create Case Form -->
     <Transition name="slide-down">
@@ -214,7 +200,7 @@ const getStatusLabel = (status: string): string => {
 
       <!-- Cases Grid -->
       <div v-else class="cases-grid">
-        <Transition name="fade" appear>
+        <TransitionGroup name="fade" appear tag="div" class="cases-grid-inner">
           <div 
             v-for="caseItem in caseStore.cases" 
             :key="caseItem.id" 
@@ -255,7 +241,7 @@ const getStatusLabel = (status: string): string => {
               </div>
             </div>
           </div>
-        </Transition>
+        </TransitionGroup>
       </div>
     </div>
   </div>
@@ -355,6 +341,10 @@ const getStatusLabel = (status: string): string => {
 }
 
 .cases-grid {
+  width: 100%;
+}
+
+.cases-grid-inner {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: var(--spacing-lg);
@@ -585,9 +575,24 @@ const getStatusLabel = (status: string): string => {
   transform: translateY(-10px);
 }
 
-.fade-enter-active {
+/* Fade transitions for TransitionGroup */
+.fade-enter-active,
+.fade-leave-active {
   transition: all var(--transition-normal);
-  animation: fade-in 0.5s ease-out;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+}
+
+.fade-move {
+  transition: transform var(--transition-normal);
 }
 
 /* Responsive Design */
@@ -606,7 +611,7 @@ const getStatusLabel = (status: string): string => {
     font-size: var(--font-size-3xl);
   }
   
-  .cases-grid {
+  .cases-grid-inner {
     grid-template-columns: 1fr;
     gap: var(--spacing-md);
   }

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiClient } from '@/services/api'
 import type { Case, CaseCreate, Document, Report } from '@/types'
+import { useNotificationStore } from './notification'
 
 export const useCaseStore = defineStore('case', () => {
   // State
@@ -11,6 +12,9 @@ export const useCaseStore = defineStore('case', () => {
   const reports = ref<Report[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  
+  // Notification store
+  const notificationStore = useNotificationStore()
 
   // Getters
   const getCaseById = computed(() => {
@@ -33,14 +37,8 @@ export const useCaseStore = defineStore('case', () => {
       }
     } catch (err) {
       console.error('Error fetching cases:', err)
-      if (err.response) {
-        console.error('Error response:', {
-          status: err.response.status,
-          statusText: err.response.statusText,
-          data: err.response.data
-        })
-      }
       error.value = 'Er is een fout opgetreden bij het ophalen van cases.'
+      notificationStore.handleApiError(err, 'ophalen van cases')
       
       // Provide empty array instead of throwing to handle error gracefully
       cases.value = []
@@ -80,8 +78,8 @@ export const useCaseStore = defineStore('case', () => {
         console.error('No response received:', err.request)
       }
       
-      console.error('Full error object:', JSON.stringify(err, null, 2))
       error.value = err.message || 'Failed to fetch case details'
+      notificationStore.handleApiError(err, 'ophalen van case details')
       throw err
     } finally {
       loading.value = false
@@ -98,17 +96,12 @@ export const useCaseStore = defineStore('case', () => {
       console.log('Create case response:', response.data)
       const newCase = response.data
       cases.value.unshift(newCase)
+      notificationStore.success('Case aangemaakt', `Case "${newCase.title}" is succesvol aangemaakt`)
       return newCase
     } catch (err) {
       console.error('Error creating case:', err)
-      if (err.response) {
-        console.error('Error response:', {
-          status: err.response.status,
-          statusText: err.response.statusText,
-          data: err.response.data
-        })
-      }
       error.value = 'Er is een fout opgetreden bij het aanmaken van de case.'
+      notificationStore.handleApiError(err, 'aanmaken van case')
       throw err
     } finally {
       loading.value = false
@@ -134,10 +127,12 @@ export const useCaseStore = defineStore('case', () => {
         currentCase.value = updatedCase
       }
       
+      notificationStore.success('Case bijgewerkt', `Case "${updatedCase.title}" is succesvol bijgewerkt`)
       return updatedCase
     } catch (err) {
       console.error(`Error updating case ${id}:`, err)
       error.value = err.message || 'Failed to update case'
+      notificationStore.handleApiError(err, 'bijwerken van case')
       throw err
     } finally {
       loading.value = false
@@ -150,14 +145,18 @@ export const useCaseStore = defineStore('case', () => {
     
     try {
       await apiClient.delete(`/cases/${id}`)
+      const deletedCase = cases.value.find(c => c.id === id)
       cases.value = cases.value.filter(c => c.id !== id)
       
       if (currentCase.value && currentCase.value.id === id) {
         currentCase.value = null
       }
+      
+      notificationStore.success('Case verwijderd', `Case "${deletedCase?.title || 'Onbekend'}" is succesvol verwijderd`)
     } catch (err) {
       console.error(`Error deleting case ${id}:`, err)
       error.value = err.message || 'Failed to delete case'
+      notificationStore.handleApiError(err, 'verwijderen van case')
       throw err
     } finally {
       loading.value = false
@@ -181,6 +180,7 @@ export const useCaseStore = defineStore('case', () => {
     } catch (err) {
       console.error(`Error fetching documents for case ${caseId}:`, err)
       error.value = err.message || 'Failed to fetch documents'
+      notificationStore.handleApiError(err, 'ophalen van documenten')
       throw err
     } finally {
       loading.value = false
@@ -205,6 +205,7 @@ export const useCaseStore = defineStore('case', () => {
     } catch (err) {
       console.error(`Error fetching reports for case ${caseId}:`, err)
       error.value = err.message || 'Failed to fetch reports'
+      notificationStore.handleApiError(err, 'ophalen van rapporten')
       throw err
     } finally {
       loading.value = false
