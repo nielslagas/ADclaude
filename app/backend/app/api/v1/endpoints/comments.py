@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List, Optional
 from uuid import UUID
-from sqlmodel import Session, select
+from sqlalchemy.orm import Session
+from sqlalchemy import and_
 from app.db.postgres import get_db
-from app.core.security import get_current_user, require_auth
+from app.core.security import require_auth
 from app.models.comment import Comment, CommentCreate, CommentRead, CommentUpdate, CommentWithUser
 from app.models.report import Report
 import logging
@@ -21,8 +22,7 @@ async def create_comment(
     """Create a new comment for a report section"""
     try:
         # Verify the report exists and user has access
-        report_query = select(Report).where(Report.id == comment.report_id)
-        report_result = db.exec(report_query).first()
+        report_result = db.query(Report).filter(Report.id == comment.report_id).first()
         
         if not report_result:
             raise HTTPException(
@@ -31,7 +31,7 @@ async def create_comment(
             )
         
         # Check if user has access to this report (same user or admin)
-        if report_result.user_id != current_user["sub"]:
+        if report_result.user_id != current_user["user_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to comment on this report"
@@ -39,8 +39,7 @@ async def create_comment(
         
         # If replying to a comment, verify parent exists
         if comment.parent_id:
-            parent_query = select(Comment).where(Comment.id == comment.parent_id)
-            parent_result = db.exec(parent_query).first()
+            parent_result = db.query(Comment).filter(Comment.id == comment.parent_id).first()
             if not parent_result:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -51,7 +50,7 @@ async def create_comment(
         db_comment = Comment(
             report_id=comment.report_id,
             section_id=comment.section_id,
-            user_id=current_user["sub"],
+            user_id=current_user["user_id"],
             content=comment.content,
             comment_type=comment.comment_type,
             is_internal=comment.is_internal,
@@ -86,8 +85,7 @@ async def get_report_comments(
     """Get all comments for a report, optionally filtered by section"""
     try:
         # Verify the report exists and user has access
-        report_query = select(Report).where(Report.id == report_id)
-        report_result = db.exec(report_query).first()
+        report_result = db.query(Report).filter(Report.id == report_id).first()
         
         if not report_result:
             raise HTTPException(
@@ -96,28 +94,28 @@ async def get_report_comments(
             )
         
         # Check if user has access to this report
-        if report_result.user_id != current_user["sub"]:
+        if report_result.user_id != current_user["user_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to view comments for this report"
             )
         
         # Build query for comments
-        query = select(Comment).where(Comment.report_id == report_id)
+        query = db.query(Comment).filter(Comment.report_id == report_id)
         
         if section_id:
-            query = query.where(Comment.section_id == section_id)
+            query = query.filter(Comment.section_id == section_id)
         
         if not include_internal:
-            query = query.where(Comment.is_internal == False)
+            query = query.filter(Comment.is_internal == False)
         
         # Only get top-level comments (no parent), replies will be included via relationship
-        query = query.where(Comment.parent_id.is_(None))
+        query = query.filter(Comment.parent_id.is_(None))
         
         # Order by creation date
         query = query.order_by(Comment.created_at.desc())
         
-        comments = db.exec(query).all()
+        comments = query.all()
         
         logger.info(f"Retrieved {len(comments)} comments for report {report_id}")
         return comments
@@ -141,8 +139,7 @@ async def update_comment(
     """Update an existing comment"""
     try:
         # Get the existing comment
-        query = select(Comment).where(Comment.id == comment_id)
-        db_comment = db.exec(query).first()
+        db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
         
         if not db_comment:
             raise HTTPException(
@@ -151,7 +148,7 @@ async def update_comment(
             )
         
         # Check if user owns this comment
-        if db_comment.user_id != current_user["sub"]:
+        if db_comment.user_id != current_user["user_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to update this comment"
@@ -188,8 +185,7 @@ async def delete_comment(
     """Delete a comment (soft delete by marking as resolved)"""
     try:
         # Get the existing comment
-        query = select(Comment).where(Comment.id == comment_id)
-        db_comment = db.exec(query).first()
+        db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
         
         if not db_comment:
             raise HTTPException(
@@ -198,7 +194,7 @@ async def delete_comment(
             )
         
         # Check if user owns this comment
-        if db_comment.user_id != current_user["sub"]:
+        if db_comment.user_id != current_user["user_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to delete this comment"
@@ -230,8 +226,7 @@ async def resolve_comment(
     """Mark a comment as resolved"""
     try:
         # Get the existing comment
-        query = select(Comment).where(Comment.id == comment_id)
-        db_comment = db.exec(query).first()
+        db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
         
         if not db_comment:
             raise HTTPException(
@@ -240,10 +235,9 @@ async def resolve_comment(
             )
         
         # Check if user has access to the report
-        report_query = select(Report).where(Report.id == db_comment.report_id)
-        report_result = db.exec(report_query).first()
+        report_result = db.query(Report).filter(Report.id == db_comment.report_id).first()
         
-        if not report_result or report_result.user_id != current_user["sub"]:
+        if not report_result or report_result.user_id != current_user["user_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to resolve this comment"
