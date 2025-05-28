@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useReportStore } from '@/stores/report';
 import { useCaseStore } from '@/stores/case';
 import { marked } from 'marked'; // Dit moet geïnstalleerd worden via npm install marked
+import CommentSystem from '@/components/CommentSystem.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -262,14 +263,64 @@ const openSourcesDialog = async () => {
   await handleSourcesDialogOpen();
 };
 
-// Download report as DOCX
-const downloadReport = async () => {
+// Selected layout for download
+const selectedLayout = ref('standaard');
+
+// Available layout options
+const layoutOptions = [
+  { id: 'standaard', name: 'Standaard' },
+  { id: 'modern', name: 'Modern' },
+  { id: 'professioneel', name: 'Professioneel' }
+];
+
+// Show download options dialog
+const showDownloadDialog = ref(false);
+
+// Store whether preview was open
+const wasPreviewOpen = ref(false);
+
+// Open download options dialog
+const openDownloadDialog = () => {
+  // If preview dialog is open, close it temporarily
+  wasPreviewOpen.value = showPreviewDialog.value;
+  if (wasPreviewOpen.value) {
+    showPreviewDialog.value = false;
+  }
+
+  // Show download dialog
+  showDownloadDialog.value = true;
+};
+
+// Close download options dialog
+const closeDownloadDialog = () => {
+  showDownloadDialog.value = false;
+
+  // If preview was open before, restore it
+  if (wasPreviewOpen.value) {
+    showPreviewDialog.value = true;
+    wasPreviewOpen.value = false;
+  }
+};
+
+// Download report as DOCX with selected layout
+const downloadReport = async (layout = 'standaard') => {
   if (!reportStore.currentReport) return;
-  
+
   downloadingReport.value = true;
-  
+
   try {
-    await reportStore.downloadReportAsDocx(reportId.value);
+    // Close any open dialogs
+    showDownloadDialog.value = false;
+    showPreviewDialog.value = false;
+
+    // Reset dialog state
+    wasPreviewOpen.value = false;
+
+    // Download with selected layout
+    await reportStore.downloadReportAsDocx(reportId.value, layout);
+
+    // Show a brief success message
+    alert('Het rapport wordt gedownload.');
   } catch (err) {
     error.value = 'Er is een fout opgetreden bij het downloaden van het rapport.';
     console.error(err);
@@ -358,6 +409,12 @@ const getOrderedSections = () => {
   return availableSections;
 };
 
+// Handle comments updated event
+const handleCommentsUpdated = (count: number) => {
+  console.log(`Comments updated: ${count} comments for section ${activeSection.value}`);
+  // Could add UI feedback here, such as showing comment count in section header
+};
+
 // Clean up on component unmount
 onMounted(() => {
   fetchReport();
@@ -398,9 +455,9 @@ onMounted(() => {
         <div class="report-actions">
           <!-- Document actions -->
           <div class="action-group">
-            <button 
+            <button
               v-if="reportStore.currentReport.status === 'generated'"
-              @click="downloadReport" 
+              @click="openDownloadDialog"
               class="btn btn-primary"
               :disabled="downloadingReport"
             >
@@ -575,6 +632,15 @@ onMounted(() => {
             </div>
             <pre v-else class="markdown-content">{{ reportStore.currentReport.content[activeSection] }}</pre>
           </div>
+
+          <!-- Comment System -->
+          <CommentSystem 
+            v-if="reportStore.currentReport.status === 'generated'"
+            :report-id="reportStore.currentReport.id"
+            :section-id="activeSection"
+            :include-internal="true"
+            @comments-updated="handleCommentsUpdated"
+          />
           
           <!-- Sources Dialog -->
           <div v-if="showSourcesDialog" class="sources-dialog">
@@ -611,6 +677,7 @@ onMounted(() => {
             </div>
           </div>
           
+
           <!-- Preview Report Dialog -->
           <div v-if="showPreviewDialog" class="preview-dialog">
             <div class="dialog-content preview-content">
@@ -620,7 +687,7 @@ onMounted(() => {
                   <button @click="printPreview" class="btn btn-outline">
                     <span class="icon">🖨️</span> Afdrukken
                   </button>
-                  <button @click="downloadReport" class="btn btn-primary">
+                  <button @click="openDownloadDialog" class="btn btn-primary">
                     <span class="icon">📥</span> Downloaden
                   </button>
                   <button @click="closePreviewDialog" class="close-btn" style="font-size: 1.5rem; cursor: pointer;">&times;</button>
@@ -634,6 +701,58 @@ onMounted(() => {
                     <h1>Arbeidsdeskundig Rapport</h1>
                     <h2>{{ reportStore.currentReport.title }}</h2>
                     <p class="preview-date">{{ formatDate(reportStore.currentReport.created_at) }}</p>
+
+                    <!-- Profile Information (if available) -->
+                    <div v-if="reportStore.currentReport.metadata?.user_profile" class="preview-profile-info">
+                      <div class="preview-profile-header">
+                        <div v-if="reportStore.currentReport.metadata.user_profile.logo_url" class="preview-logo">
+                          <img :src="reportStore.currentReport.metadata.user_profile.logo_url" alt="Logo" />
+                        </div>
+                        <div class="preview-profile-details">
+                          <p v-if="reportStore.currentReport.metadata.user_profile.display_name" class="preview-profile-name">
+                            {{ reportStore.currentReport.metadata.user_profile.display_name }}
+                          </p>
+                          <p v-else-if="reportStore.currentReport.metadata.user_profile.first_name && reportStore.currentReport.metadata.user_profile.last_name" class="preview-profile-name">
+                            {{ reportStore.currentReport.metadata.user_profile.first_name }} {{ reportStore.currentReport.metadata.user_profile.last_name }}
+                          </p>
+                          <p v-if="reportStore.currentReport.metadata.user_profile.job_title" class="preview-profile-jobtitle">
+                            {{ reportStore.currentReport.metadata.user_profile.job_title }}
+                          </p>
+                          <p v-if="reportStore.currentReport.metadata.user_profile.certification" class="preview-profile-certification">
+                            {{ reportStore.currentReport.metadata.user_profile.certification }}
+                            <span v-if="reportStore.currentReport.metadata.user_profile.registration_number">
+                              - {{ reportStore.currentReport.metadata.user_profile.registration_number }}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div v-if="reportStore.currentReport.metadata.user_profile.company_name" class="preview-company-info">
+                        <p class="preview-company-name">{{ reportStore.currentReport.metadata.user_profile.company_name }}</p>
+
+                        <div v-if="reportStore.currentReport.metadata.user_profile.company_address ||
+                                   reportStore.currentReport.metadata.user_profile.company_postal_code ||
+                                   reportStore.currentReport.metadata.user_profile.company_city"
+                             class="preview-company-address">
+                          <p>
+                            {{ reportStore.currentReport.metadata.user_profile.company_address }}<br v-if="reportStore.currentReport.metadata.user_profile.company_address">
+                            {{ reportStore.currentReport.metadata.user_profile.company_postal_code }} {{ reportStore.currentReport.metadata.user_profile.company_city }}
+                          </p>
+                        </div>
+
+                        <div class="preview-company-contact">
+                          <p v-if="reportStore.currentReport.metadata.user_profile.company_phone">
+                            Tel: {{ reportStore.currentReport.metadata.user_profile.company_phone }}
+                          </p>
+                          <p v-if="reportStore.currentReport.metadata.user_profile.company_email">
+                            Email: {{ reportStore.currentReport.metadata.user_profile.company_email }}
+                          </p>
+                          <p v-if="reportStore.currentReport.metadata.user_profile.company_website">
+                            Website: {{ reportStore.currentReport.metadata.user_profile.company_website }}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   
                   <!-- Table of Contents -->
@@ -676,6 +795,106 @@ onMounted(() => {
         
         <div v-else class="no-section-selected">
           <p>Selecteer een sectie om de inhoud te bekijken.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Download Options Dialog -->
+    <div v-if="showDownloadDialog" class="download-dialog sources-dialog">
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h3>Download Rapportage</h3>
+          <button @click="closeDownloadDialog" class="close-btn">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <p>Kies een layout voor je rapport:</p>
+          <div class="layout-options">
+            <div
+              v-for="option in layoutOptions"
+              :key="option.id"
+              class="layout-option"
+              :class="{ 'selected': selectedLayout === option.id }"
+              @click="selectedLayout = option.id"
+            >
+              <div class="layout-preview">
+                <!-- Verbeterde visuele weergave van de layout -->
+                <div class="layout-preview-image" :class="option.id">
+                  <!-- Standaard layout -->
+                  <div v-if="option.id === 'standaard'" class="preview-standard">
+                    <div class="preview-page">
+                      <div class="preview-title"></div>
+                      <div class="preview-header">
+                        <div class="preview-logo-small"></div>
+                        <div class="preview-header-text"></div>
+                      </div>
+                      <div class="preview-body">
+                        <div class="preview-line"></div>
+                        <div class="preview-line"></div>
+                        <div class="preview-line short"></div>
+                        <div class="preview-section-header"></div>
+                        <div class="preview-line"></div>
+                        <div class="preview-line"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Modern layout -->
+                  <div v-else-if="option.id === 'modern'" class="preview-modern">
+                    <div class="preview-page">
+                      <div class="preview-title-modern"></div>
+                      <div class="preview-header modern">
+                        <div class="preview-logo-right"></div>
+                      </div>
+                      <div class="preview-body">
+                        <div class="preview-line modern"></div>
+                        <div class="preview-line modern"></div>
+                        <div class="preview-line modern short"></div>
+                        <div class="preview-section-header modern"></div>
+                        <div class="preview-line modern"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Professioneel layout -->
+                  <div v-else-if="option.id === 'professioneel'" class="preview-professional">
+                    <div class="preview-page">
+                      <div class="preview-title-professional"></div>
+                      <div class="preview-header professional">
+                        <div class="preview-logo-large"></div>
+                        <div class="preview-company-info"></div>
+                      </div>
+                      <div class="preview-body professional">
+                        <div class="preview-section-header professional"></div>
+                        <div class="preview-line professional"></div>
+                        <div class="preview-line professional"></div>
+                        <div class="preview-line professional short"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="layout-details">
+                <h4>{{ option.name }}</h4>
+                <p v-if="option.id === 'standaard'">
+                  Eenvoudige, overzichtelijke layout met standaard opmaak. Logo links bovenaan met bedrijfsgegevens ernaast.
+                </p>
+                <p v-else-if="option.id === 'modern'">
+                  Moderne en frisse layout met accentkleuren en betere visuele hiërarchie. Logo rechts bovenaan met minimalistisch design.
+                </p>
+                <p v-else-if="option.id === 'professioneel'">
+                  Professionele layout met bedrijfslogo prominent aanwezig bovenaan en formele structuur voor officiële documenten.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button @click="closeDownloadDialog" class="btn btn-secondary">Annuleren</button>
+          <button @click="downloadReport(selectedLayout)" class="btn btn-primary">
+            <span v-if="downloadingReport" class="spinner small"></span>
+            <span v-else class="icon">📥</span>
+            Download
+          </button>
         </div>
       </div>
     </div>
@@ -1374,5 +1593,318 @@ onMounted(() => {
     width: 95%;
     max-height: 95%;
   }
+}
+
+/* Profile styling for report preview */
+.preview-title-page {
+  padding: 2rem;
+  text-align: center;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.preview-title-page h1 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.preview-title-page h2 {
+  color: var(--text-color);
+  margin-bottom: 1.5rem;
+}
+
+.preview-date {
+  color: var(--text-light);
+  margin-bottom: 2rem;
+}
+
+.preview-profile-info {
+  margin-top: 3rem;
+  text-align: left;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 2rem;
+}
+
+.preview-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.preview-logo {
+  width: 150px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.preview-profile-details {
+  flex: 1;
+}
+
+.preview-profile-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-dark);
+  margin: 0 0 0.25rem 0;
+}
+
+.preview-profile-jobtitle {
+  color: var(--text-color);
+  margin: 0 0 0.25rem 0;
+}
+
+.preview-profile-certification {
+  color: var(--text-color);
+  font-style: italic;
+  margin: 0;
+}
+
+.preview-company-info {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+}
+
+.preview-company-name {
+  font-weight: 600;
+  color: var(--text-dark);
+  margin: 0 0 0.5rem 0;
+}
+
+.preview-company-address p {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-color);
+}
+
+.preview-company-contact p {
+  margin: 0 0 0.25rem 0;
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+/* Download dialog styling */
+.download-dialog .dialog-content {
+  max-width: 650px;
+}
+
+.layout-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.layout-option {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.layout-option:hover {
+  background-color: #f8fafc;
+}
+
+.layout-option.selected {
+  border-color: #3b82f6;
+  background-color: #f0f7ff;
+}
+
+.layout-preview {
+  width: 180px;
+  height: 120px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.layout-preview-image {
+  width: 85%;
+  height: 85%;
+  background-color: white;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-details {
+  flex: 1;
+}
+
+.layout-details h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-dark);
+}
+
+.layout-details p {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+/* Layout previews */
+.preview-page {
+  width: 100%;
+  height: 100%;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-title, .preview-title-modern, .preview-title-professional {
+  height: 10%;
+  background-color: #f8f9fa;
+  margin: 4px;
+  border-radius: 2px;
+}
+
+.preview-title-modern {
+  background-color: #dbeafe;
+  height: 12%;
+}
+
+.preview-title-professional {
+  background-color: #1e40af;
+  height: 15%;
+}
+
+.preview-header {
+  height: 15%;
+  background-color: #f9fafb;
+  margin: 0 4px 8px 4px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.preview-header.modern {
+  background-color: #eff6ff;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.preview-header.professional {
+  background-color: #f1f5f9;
+  height: 20%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.preview-logo-small {
+  width: 20%;
+  height: 80%;
+  background-color: #e5e7eb;
+  margin-left: 5px;
+  border-radius: 2px;
+}
+
+.preview-logo-right {
+  width: 20%;
+  height: 80%;
+  background-color: #3b82f6;
+  margin-right: 5px;
+  border-radius: 2px;
+}
+
+.preview-logo-large {
+  width: 30%;
+  height: 80%;
+  background-color: #334155;
+  margin: 5px;
+  border-radius: 2px;
+}
+
+.preview-company-info {
+  width: 50%;
+  height: 80%;
+  margin: 5px;
+  background-color: #e2e8f0;
+  border-radius: 2px;
+}
+
+.preview-header-text {
+  width: 60%;
+  height: 60%;
+  background-color: #f3f4f6;
+  margin-left: 10px;
+  border-radius: 2px;
+}
+
+.preview-body {
+  height: 75%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.preview-body.professional {
+  height: 65%;
+}
+
+.preview-section-header {
+  height: 8px;
+  background-color: #f3f4f6;
+  width: 40%;
+  margin: 4px 0;
+  border-radius: 1px;
+}
+
+.preview-section-header.modern {
+  background-color: #3b82f6;
+  height: 6px;
+}
+
+.preview-section-header.professional {
+  background-color: #1e293b;
+  width: 50%;
+  height: 10px;
+}
+
+.preview-line {
+  height: 5px;
+  background-color: #e5e7eb;
+  width: 100%;
+  border-radius: 1px;
+}
+
+.preview-line.modern {
+  height: 4px;
+  background-color: #dbeafe;
+}
+
+.preview-line.professional {
+  height: 6px;
+  background-color: #cbd5e1;
+}
+
+.preview-line.short {
+  width: 70%;
+}
+
+.spinner.small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  margin-right: 0.25rem;
 }
 </style>

@@ -45,6 +45,7 @@ export interface Report {
   created_at: string;
   updated_at?: string;
   content?: Record<string, string>;
+  metadata?: Record<string, any>; // Added for layout type and other metadata
   error?: string;
 }
 
@@ -52,6 +53,7 @@ export interface ReportCreate {
   title: string;
   template_id: string;
   case_id: string;
+  layout_type: string; // Required, set default when creating report
 }
 
 export interface ReportSection {
@@ -64,4 +66,36 @@ export interface ReportTemplate {
   name: string;
   description: string;
   sections: Record<string, ReportSection>;
+}
+
+export interface Comment {
+  id: string;
+  report_id: string;
+  section_id?: string;
+  user_id: string;
+  content: string;
+  comment_type: string;
+  status: string;
+  is_internal: boolean;
+  parent_id?: string;
+  created_at: string;
+  updated_at?: string;
+  replies?: Comment[];
+  user_name?: string;
+  user_email?: string;
+}
+
+export interface CommentCreate {
+  report_id: string;
+  section_id?: string | null;
+  content: string;
+  comment_type: string;
+  is_internal: boolean;
+  parent_id?: string | null;
+}
+
+export interface CommentUpdate {
+  content?: string;
+  status?: string;
+  comment_type?: string;
 }
