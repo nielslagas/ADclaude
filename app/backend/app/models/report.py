@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel, Field, Relationship, JSON
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlalchemy import Column
@@ -15,21 +15,22 @@ class Report(TimeStampedModel, table=True):
     status: str = Field(default="processing")  # processing, generated, failed
     case_id: UUID = Field(foreign_key="case.id", index=True)
     user_id: str = Field(index=True)  # Matches user_id from Supabase auth
-    
+
     # Content stores generated report sections as JSON
     content: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)  # JSON field
-    
+
     # Generation metadata - use Column directly to avoid SQLModel field naming issues
     report_metadata: Optional[Dict[str, Any]] = Field(
-        default=None, 
+        default=None,
         sa_column=Column("metadata", JSON, nullable=True)
     )
-    
+
     # Error message in case of generation failure
     error: Optional[str] = Field(default=None)
-    
+
     # Relationships
     case: "Case" = Relationship(back_populates="reports")
+    comments: List["Comment"] = Relationship(back_populates="report")
 
 
 class ReportCreate(SQLModel):
@@ -39,6 +40,7 @@ class ReportCreate(SQLModel):
     title: str
     template_id: str
     case_id: UUID
+    layout_type: Optional[str] = "standaard"
 
 
 class ReportRead(SQLModel):
@@ -57,6 +59,7 @@ class ReportRead(SQLModel):
     error: Optional[str] = None
 
 
+
 class ReportSectionGenerate(SQLModel):
     """
     Schema for requesting generation of a specific report section
@@ -72,4 +75,5 @@ class ReportTemplate(SQLModel):
     id: str
     name: str
     description: str
+    layout: str = "standaard"
     sections: Dict[str, Any]  # JSON schema of sections
