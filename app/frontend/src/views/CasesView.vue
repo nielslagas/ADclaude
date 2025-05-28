@@ -71,264 +71,437 @@ const formatDate = (dateString: string) => {
     day: 'numeric'
   });
 };
+
+const getStatusLabel = (status: string): string => {
+  const statusLabels: Record<string, string> = {
+    'active': 'Actief',
+    'completed': 'Voltooid',
+    'archived': 'Gearchiveerd',
+    'draft': 'Concept'
+  };
+  return statusLabels[status] || status;
+};
 </script>
 
 <template>
   <div class="cases-container">
-    <div class="header">
-      <h1>Mijn Cases</h1>
-      <button 
-        @click="toggleCreateForm" 
-        class="btn btn-primary"
-        :class="{ 'btn-secondary': showCreateForm }"
-      >
-        {{ showCreateForm ? 'Annuleren' : 'Nieuwe Case' }}
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="header-content">
+        <div class="header-text">
+          <h1>Mijn Cases</h1>
+          <p class="header-subtitle">Beheer uw arbeidsdeskundig onderzoek cases</p>
+        </div>
+        <div class="header-actions">
+          <button 
+            @click="toggleCreateForm" 
+            class="btn btn-primary"
+            :class="{ 'btn-outline': showCreateForm }"
+            :disabled="loading"
+          >
+            <svg v-if="!showCreateForm" class="btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+            </svg>
+            <svg v-else class="btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+            {{ showCreateForm ? 'Annuleren' : 'Nieuwe Case' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Alert -->
+    <div v-if="error" class="alert alert-danger" role="alert">
+      <div class="alert-content">
+        <svg class="alert-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+        </svg>
+        <span>{{ error }}</span>
+      </div>
+      <button @click="error = null" class="alert-close" aria-label="Sluiten">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z"/>
+        </svg>
       </button>
     </div>
 
-    <div v-if="error" class="alert alert-danger">
-      {{ error }}
-      <button @click="error = null" class="close-btn">&times;</button>
-    </div>
-
     <!-- Create Case Form -->
-    <div v-if="showCreateForm" class="create-form">
-      <h2>Nieuwe Case Aanmaken</h2>
-      <form @submit.prevent="createCase">
-        <div class="form-group">
-          <label for="title">Titel *</label>
-          <input 
-            type="text" 
-            id="title" 
-            v-model="newCase.title" 
-            placeholder="Voer een titel in"
-            required
-            class="form-control"
-          />
-        </div>
+    <Transition name="slide-down">
+      <div v-if="showCreateForm" class="create-form-container">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Nieuwe Case Aanmaken</h2>
+            <p class="card-subtitle">Voer de basisgegevens in voor uw nieuwe case</p>
+          </div>
+          <div class="card-body">
+            <form @submit.prevent="createCase">
+              <div class="form-group">
+                <label for="title" class="form-label">Titel *</label>
+                <input 
+                  type="text" 
+                  id="title" 
+                  v-model="newCase.title" 
+                  placeholder="Bijvoorbeeld: Onderzoek Jan Janssen"
+                  required
+                  class="form-input"
+                  :disabled="loading"
+                />
+              </div>
 
-        <div class="form-group">
-          <label for="description">Beschrijving (optioneel)</label>
-          <textarea 
-            id="description" 
-            v-model="newCase.description" 
-            placeholder="Voer een beschrijving in"
-            class="form-control"
-            rows="3"
-          ></textarea>
-        </div>
+              <div class="form-group">
+                <label for="description" class="form-label">Beschrijving (optioneel)</label>
+                <textarea 
+                  id="description" 
+                  v-model="newCase.description" 
+                  placeholder="Korte beschrijving van de case..."
+                  class="form-textarea"
+                  rows="3"
+                  :disabled="loading"
+                ></textarea>
+              </div>
 
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary" :disabled="loading">
-            <span v-if="loading">Bezig met aanmaken...</span>
-            <span v-else>Aanmaken</span>
-          </button>
-          <button type="button" class="btn btn-secondary" @click="toggleCreateForm">Annuleren</button>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary" :disabled="loading">
+                  <svg v-if="loading" class="btn-icon animate-spin" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 3a7 7 0 100 14 7 7 0 000-14zm0 2a5 5 0 110 10 5 5 0 010-10z" opacity="0.25"/>
+                    <path d="M10 3a7 7 0 017 7h-2a5 5 0 00-5-5V3z"/>
+                  </svg>
+                  <svg v-else class="btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                  {{ loading ? 'Bezig met aanmaken...' : 'Case Aanmaken' }}
+                </button>
+                <button type="button" class="btn btn-outline" @click="toggleCreateForm" :disabled="loading">
+                  Annuleren
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </form>
-    </div>
+      </div>
+    </Transition>
 
     <!-- Cases List -->
-    <div class="cases-list">
-      <div v-if="loading && !caseStore.cases.length" class="loading">
-        <p>Cases worden geladen...</p>
-      </div>
-
-      <div v-else-if="!caseStore.cases.length" class="no-cases">
-        <p>Je hebt nog geen cases aangemaakt.</p>
-        <button @click="toggleCreateForm" class="btn btn-primary">Eerste Case Aanmaken</button>
-      </div>
-
-      <div v-else class="case-cards">
-        <div 
-          v-for="caseItem in caseStore.cases" 
-          :key="caseItem.id" 
-          class="case-card"
-          @click="viewCase(caseItem.id)"
-        >
-          <div class="case-header">
-            <h3>{{ caseItem.title }}</h3>
-            <span class="case-status" :class="caseItem.status">{{ caseItem.status }}</span>
-          </div>
-          <p v-if="caseItem.description" class="case-description">{{ caseItem.description }}</p>
-          <p v-else class="case-description empty">Geen beschrijving</p>
-          <div class="case-footer">
-            <span class="case-date">Aangemaakt: {{ formatDate(caseItem.created_at) }}</span>
-          </div>
+    <div class="cases-section">
+      <!-- Loading Skeleton -->
+      <div v-if="loading && !caseStore.cases.length" class="cases-grid">
+        <div v-for="n in 3" :key="n" class="case-skeleton">
+          <div class="skeleton skeleton-header"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text short"></div>
+          <div class="skeleton skeleton-footer"></div>
         </div>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else-if="!caseStore.cases.length" class="empty-state">
+        <div class="empty-icon">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="8" y="16" width="48" height="32" rx="4"/>
+            <path d="M8 20h48M16 12v8M48 12v8"/>
+          </svg>
+        </div>
+        <h3>Nog geen cases</h3>
+        <p>Begin met het aanmaken van uw eerste arbeidsdeskundige case.</p>
+        <button @click="toggleCreateForm" class="btn btn-primary">
+          <svg class="btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
+          Eerste Case Aanmaken
+        </button>
+      </div>
+
+      <!-- Cases Grid -->
+      <div v-else class="cases-grid">
+        <Transition name="fade" appear>
+          <div 
+            v-for="caseItem in caseStore.cases" 
+            :key="caseItem.id" 
+            class="case-card"
+            @click="viewCase(caseItem.id)"
+            role="button"
+            tabindex="0"
+            @keydown.enter="viewCase(caseItem.id)"
+            @keydown.space.prevent="viewCase(caseItem.id)"
+          >
+            <div class="case-header">
+              <h3 class="case-title">{{ caseItem.title }}</h3>
+              <span class="case-status" :class="`status-${caseItem.status}`">
+                {{ getStatusLabel(caseItem.status) }}
+              </span>
+            </div>
+            
+            <div class="case-body">
+              <p v-if="caseItem.description" class="case-description">
+                {{ caseItem.description }}
+              </p>
+              <p v-else class="case-description empty">
+                Geen beschrijving toegevoegd
+              </p>
+            </div>
+            
+            <div class="case-footer">
+              <div class="case-meta">
+                <svg class="meta-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2H4zm0 2h8v8H4V4z" clip-rule="evenodd"/>
+                </svg>
+                <span class="case-date">{{ formatDate(caseItem.created_at) }}</span>
+              </div>
+              <div class="case-arrow">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 11-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+/* Container */
 .cases-container {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 1rem;
 }
 
-.header {
+/* Page Header */
+.page-header {
+  margin-bottom: var(--spacing-2xl);
+}
+
+.header-content {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
 }
 
-.header h1 {
+.header-text h1 {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.header-subtitle {
   margin: 0;
-  color: var(--primary-color);
+  font-size: var(--font-size-lg);
+  color: var(--text-secondary);
 }
 
+.header-actions {
+  flex-shrink: 0;
+}
+
+.btn-icon {
+  margin-right: var(--spacing-sm);
+}
+
+/* Alerts */
 .alert {
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius);
+  margin-bottom: var(--spacing-lg);
+  border: 1px solid transparent;
 }
 
 .alert-danger {
-  background-color: #fde8e8;
-  color: #ef4444;
-  border: 1px solid #f87171;
+  background-color: var(--error-light);
+  border-color: var(--error-color);
+  color: var(--error-color);
 }
 
-.close-btn {
-  position: absolute;
-  right: 1rem;
-  top: 1rem;
+.alert-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.alert-icon {
+  flex-shrink: 0;
+}
+
+.alert-close {
   background: none;
   border: none;
-  font-size: 1.25rem;
-  cursor: pointer;
   color: inherit;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
 }
 
-.create-form {
-  background-color: #f8f9fa;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin-bottom: 2rem;
-  box-shadow: var(--shadow);
-}
-
-.create-form h2 {
-  margin-top: 0;
-  margin-bottom: 1.5rem;
-  font-size: 1.5rem;
-  color: var(--primary-color);
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-.form-control {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.2);
+/* Form Container */
+.create-form-container {
+  margin-bottom: var(--spacing-2xl);
 }
 
 .form-actions {
   display: flex;
-  gap: 1rem;
-  margin-top: 1.5rem;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
 }
 
-.loading, .no-cases {
-  text-align: center;
-  padding: 3rem 1rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
+/* Cases Section */
+.cases-section {
+  margin-top: var(--spacing-2xl);
 }
 
-.no-cases p {
-  margin-bottom: 1.5rem;
-  color: var(--text-light);
-}
-
-.case-cards {
+.cases-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
 }
 
+/* Loading Skeletons */
+.case-skeleton {
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-color);
+}
+
+.skeleton {
+  border-radius: var(--radius-sm);
+  background-color: var(--gray-200);
+  animation: skeleton 1.5s infinite;
+}
+
+.skeleton-header {
+  height: 24px;
+  margin-bottom: var(--spacing-md);
+  width: 70%;
+}
+
+.skeleton-text {
+  height: 16px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+.skeleton-footer {
+  height: 14px;
+  width: 40%;
+  margin-top: var(--spacing-md);
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-2xl);
+  grid-column: 1 / -1;
+}
+
+.empty-icon {
+  color: var(--gray-400);
+  margin-bottom: var(--spacing-lg);
+}
+
+.empty-state h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.empty-state p {
+  margin: 0 0 var(--spacing-lg) 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-lg);
+}
+
+/* Case Cards */
 .case-card {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  padding: 1.5rem;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
 }
 
 .case-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-hover);
+}
+
+.case-card:focus {
+  outline: none;
+  box-shadow: var(--shadow-lg), 0 0 0 2px var(--primary-color);
 }
 
 .case-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-md);
+  gap: var(--spacing-md);
 }
 
-.case-header h3 {
+.case-title {
   margin: 0;
-  font-size: 1.25rem;
-  color: var(--primary-color);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  line-height: var(--line-height-tight);
 }
 
 .case-status {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 999px;
-  font-weight: 500;
+  flex-shrink: 0;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.case-status.active {
-  background-color: #dcfce7;
-  color: #16a34a;
+.status-active {
+  background-color: var(--success-light);
+  color: var(--success-color);
 }
 
-.case-status.archived {
-  background-color: #f3f4f6;
-  color: #6b7280;
+.status-completed {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
 }
 
-.case-status.deleted {
-  background-color: #fee2e2;
-  color: #dc2626;
+.status-archived {
+  background-color: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.status-draft {
+  background-color: var(--warning-light);
+  color: var(--warning-color);
+}
+
+.case-body {
+  margin-bottom: var(--spacing-lg);
 }
 
 .case-description {
-  color: var(--text-color);
-  margin-bottom: 1.5rem;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  color: var(--text-secondary);
 }
 
 .case-description.empty {
-  color: var(--text-light);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -336,56 +509,136 @@ const formatDate = (dateString: string) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.8rem;
-  color: var(--text-light);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
 }
 
-.btn {
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: background-color 0.2s;
+.case-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
-.btn-primary {
-  background-color: #3b82f6;
-  color: white;
+.meta-icon {
+  color: var(--text-muted);
 }
 
-.btn-primary:hover {
-  background-color: #2563eb;
+.case-date {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
 }
 
-.btn-primary:disabled {
-  background-color: #93c5fd;
-  cursor: not-allowed;
+.case-arrow {
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
 }
 
-.btn-secondary {
-  background-color: #e5e7eb;
-  color: #4b5563;
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.btn-secondary:hover {
-  background-color: #d1d5db;
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Transitions */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all var(--transition-normal);
+}
+
+.slide-down-enter-from {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.fade-enter-active {
+  transition: all var(--transition-normal);
+  animation: fade-in 0.5s ease-out;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-  .header {
+  .header-content {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+    align-items: stretch;
+    gap: var(--spacing-md);
   }
   
-  .case-cards {
+  .header-text {
+    text-align: center;
+  }
+  
+  .header-text h1 {
+    font-size: var(--font-size-3xl);
+  }
+  
+  .cases-grid {
     grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+  
+  .case-card {
+    padding: var(--spacing-md);
   }
   
   .form-actions {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .case-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+  
+  .case-status {
+    align-self: flex-start;
+  }
+  
+  .case-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+  
+  .case-arrow {
+    align-self: flex-end;
   }
 }
 </style>
