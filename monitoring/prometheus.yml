@@ -1,0 +1,178 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Prometheus Configuration for AI-Arbeidsdeskundige
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 
+# Comprehensive monitoring setup for:
+# - Application metrics (FastAPI, Celery)
+# - Infrastructure metrics (Docker, system)
+# - Database and Redis monitoring
+# - Traefik reverse proxy metrics
+# - Custom AI/RAG pipeline metrics
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'ai-arbeidsdeskundige-prod'
+    environment: 'production'
+
+# Rule files
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+  - "/etc/prometheus/rules/rag-pipeline-alerts.yml"
+
+# Scraping configuration
+scrape_configs:
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ PROMETHEUS SELF-MONITORING                                             │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 5s
+    metrics_path: '/metrics'
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ TRAEFIK REVERSE PROXY METRICS                                          │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['traefik:8080']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    scrape_timeout: 5s
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ APPLICATION BACKEND METRICS                                            │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'backend-api'
+    static_configs:
+      - targets: ['backend-api:8000']
+    scrape_interval: 15s
+    metrics_path: '/api/v1/monitoring/metrics'
+    scrape_timeout: 10s
+
+  # Backend health checks
+  - job_name: 'backend-health'
+    static_configs:
+      - targets: ['backend-api:8000']
+    scrape_interval: 30s
+    metrics_path: '/api/health'
+    scrape_timeout: 5s
+
+  # RAG Pipeline Health Monitoring
+  - job_name: 'rag-health'
+    static_configs:
+      - targets: ['backend-api:8000']
+    scrape_interval: 60s
+    metrics_path: '/api/v1/monitoring/health/rag'
+    scrape_timeout: 10s
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ CELERY WORKER METRICS                                                  │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'celery-worker'
+    static_configs:
+      - targets: ['backend-worker:9540']  # Flower monitoring port
+    scrape_interval: 30s
+    metrics_path: '/api/workers'
+    scrape_timeout: 10s
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ DATABASE MONITORING                                                    │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ REDIS MONITORING                                                       │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ DOCKER CONTAINER METRICS                                               │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ NODE/SYSTEM METRICS                                                    │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ AI/RAG PIPELINE SPECIFIC METRICS                                       │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: 'rag-pipeline-metrics'
+    static_configs:
+      - targets: ['backend-api:8000']
+    scrape_interval: 30s
+    metrics_path: '/api/v1/monitoring/metrics/snapshot'
+    scrape_timeout: 15s
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'ai_arbeidsdeskundige_.*'
+        target_label: 'service'
+        replacement: 'rag-pipeline'
+
+  # Component-specific performance metrics
+  - job_name: 'rag-components'
+    static_configs:
+      - targets: ['backend-api:8000']
+    scrape_interval: 60s
+    metrics_path: '/api/v1/monitoring/performance/profile'
+    scrape_timeout: 30s
+    params:
+      duration_minutes: ['5']
+
+  # Quality dashboard metrics
+  - job_name: 'quality-metrics'
+    static_configs:
+      - targets: ['backend-api:8000']
+    scrape_interval: 120s
+    metrics_path: '/api/v1/monitoring/dashboard/quality'
+    scrape_timeout: 30s
+
+  # Token usage and cost tracking
+  - job_name: 'token-usage'
+    static_configs:
+      - targets: ['backend-api:8000']
+    scrape_interval: 300s  # 5 minutes for cost data
+    metrics_path: '/api/v1/monitoring/tokens/usage'
+    scrape_timeout: 30s
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ ALERTING CONFIGURATION                                                 │
+# └────────────────────────────────────────────────────────────────────────┘
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+      timeout: 10s
+      path_prefix: /
+
+# Remote write for long-term storage (optional)
+# remote_write:
+#   - url: "http://victoriametrics:8428/api/v1/write"
+#     queue_config:
+#       max_samples_per_send: 10000
+#       batch_send_deadline: 5s
+#       max_shards: 200

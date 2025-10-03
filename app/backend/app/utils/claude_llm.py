@@ -34,14 +34,14 @@ class ClaudeModel:
     A wrapper for Claude that mimics the interface of Google's GenerativeModel class.
     """
     def __init__(self, 
-                model_name: str = "claude-3-7-sonnet-20250219",
+                model_name: str = "claude-3-5-haiku-20241022",
                 safety_settings: Optional[Dict[str, str]] = None,
                 generation_config: Optional[Dict[str, Any]] = None):
         """
         Initialize a Claude model with similar parameters to Google's GenerativeModel.
         
         Args:
-            model_name: The Claude model to use (default: claude-3-7-sonnet-20250219)
+            model_name: The Claude model to use (default: claude-3-5-haiku-20241022)
             safety_settings: Safety settings (ignored for Claude, but kept for API compatibility)
             generation_config: Generation settings like temperature, max_tokens, etc.
         """
@@ -133,7 +133,16 @@ class ClaudeModel:
         except Exception as e:
             logger.error(f"Error generating content with Claude: {str(e)}")
             
-            # Create a fallback response
+            # Check if this is an overloaded error (529) or other API error
+            error_message = str(e)
+            is_overloaded = "529" in error_message or "overloaded" in error_message.lower()
+            
+            if is_overloaded:
+                logger.warning("Claude API is currently overloaded, raising exception for retry")
+                # Raise the exception so it can be caught and handled appropriately
+                raise e
+            
+            # Create a fallback response for other errors
             class FallbackResponse:
                 def __init__(self, error_message):
                     self.text = f"Op basis van de beschikbare documenten is een objectieve analyse gemaakt. Voor meer specifieke informatie zijn aanvullende documenten gewenst."

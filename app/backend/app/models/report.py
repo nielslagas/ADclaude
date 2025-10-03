@@ -7,7 +7,7 @@ from app.models.base import TimeStampedModel
 
 class Report(TimeStampedModel, table=True):
     """
-    Generated report model
+    Generated report model with structured AD report support
     """
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     title: str = Field(index=True)
@@ -27,6 +27,16 @@ class Report(TimeStampedModel, table=True):
 
     # Error message in case of generation failure
     error: Optional[str] = Field(default=None)
+    
+    # New structured report support fields
+    generation_method: Optional[str] = Field(default="legacy", index=True)  # legacy, structured, hybrid
+    format_version: Optional[str] = Field(default="1.0", index=True)  # Version of the report format
+    layout_type: Optional[str] = Field(default="standaard", index=True)  # Layout template type
+    export_formats: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)  # Available export formats
+    quality_metrics: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)  # Quality control metrics
+    generation_time_ms: Optional[int] = Field(default=None)  # Generation time in milliseconds
+    fml_rubrieken_count: Optional[int] = Field(default=0)  # Number of FML rubrieken for quick access
+    has_structured_data: Optional[bool] = Field(default=False, index=True)  # Quick check for structured content
 
     # Relationships
     case: "Case" = Relationship(back_populates="reports")
@@ -41,11 +51,12 @@ class ReportCreate(SQLModel):
     template_id: str
     case_id: UUID
     layout_type: Optional[str] = "standaard"
+    use_structured_output: Optional[bool] = False
 
 
 class ReportRead(SQLModel):
     """
-    Schema for reading a report
+    Schema for reading a report with structured data support
     """
     id: UUID
     title: str
@@ -55,8 +66,18 @@ class ReportRead(SQLModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     content: Optional[Dict[str, Any]] = None  # Using 'content' to match the database field name
-    metadata: Optional[Dict[str, Any]] = None  # Will map to report_metadata in the Report model
+    report_metadata: Optional[Dict[str, Any]] = None  # Maps to metadata field in database
     error: Optional[str] = None
+    
+    # New structured report fields
+    generation_method: Optional[str] = "legacy"
+    format_version: Optional[str] = "1.0"
+    layout_type: Optional[str] = "standaard"
+    export_formats: Optional[Dict[str, Any]] = None
+    quality_metrics: Optional[Dict[str, Any]] = None
+    generation_time_ms: Optional[int] = None
+    fml_rubrieken_count: Optional[int] = 0
+    has_structured_data: Optional[bool] = False
 
 
 

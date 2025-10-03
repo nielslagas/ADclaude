@@ -1,0 +1,319 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "AI-Arbeidsdeskundige RAG Pipeline Overview",
+    "tags": ["rag", "ai", "pipeline", "arbeidsdeskundige"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Health Score",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_system_health",
+            "legendFormat": "Health Score"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.6},
+                {"color": "green", "value": 0.8}
+              ]
+            },
+            "min": 0,
+            "max": 1,
+            "unit": "percentunit"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "background"
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Active Requests",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_active_requests",
+            "legendFormat": "Active Requests"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Total Errors (Last Hour)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(ai_arbeidsdeskundige_error_rate[1h]))",
+            "legendFormat": "Total Errors"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 10}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Throughput (req/min)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_throughput",
+            "legendFormat": "Throughput"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 1
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "Processing Time by Component",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_processing_time",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "never",
+              "pointSize": 5
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "rag_pipeline"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]
+            }
+          ]
+        },
+        "options": {
+          "tooltip": {"mode": "multi", "sort": "none"},
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Quality Scores",
+        "type": "timeseries", 
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_quality_score",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "gradientMode": "opacity"
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "Token Usage by Component",
+        "type": "barchart",
+        "targets": [
+          {
+            "expr": "sum by (component) (increase(ai_arbeidsdeskundige_token_usage[1h]))",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short"
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "list"
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "Memory Usage",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_memory_usage",
+            "legendFormat": "Memory Usage"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "MB",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16}
+      },
+      {
+        "id": 9,
+        "title": "Error Rate by Component",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(ai_arbeidsdeskundige_error_rate[5m])",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 0
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16}
+      },
+      {
+        "id": 10,
+        "title": "Cache Hit Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_cache_hit_rate",
+            "legendFormat": "Cache Efficiency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.5},
+                {"color": "green", "value": 0.8}
+              ]
+            },
+            "min": 0,
+            "max": 1,
+            "unit": "percentunit"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 4}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "component",
+          "type": "query",
+          "query": "label_values(ai_arbeidsdeskundige_processing_time, component)",
+          "refresh": "on_time_range_change",
+          "includeAll": true,
+          "allValue": ".*"
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Critical Alerts",
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "ALERTS{alertstate=\"firing\",severity=\"critical\"}",
+          "iconColor": "red",
+          "titleFormat": "{{alertname}}"
+        }
+      ]
+    }
+  }
+}

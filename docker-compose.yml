@@ -1,11 +1,21 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
 
+# AI-Arbeidsdeskundige Docker Compose Configuration
+# Complete microservices setup for AI-powered labor expert report generation
+# Includes: PostgreSQL with pgvector, Redis, FastAPI backend, Celery workers, Vue.js frontend
+
 services:
-  # Database service with pgvector extension
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # DATABASE SERVICES
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  
+  # PostgreSQL database with pgvector extension for vector embeddings
+  # Supports semantic search and RAG functionality
   db:
     build:
       context: ./db
       dockerfile: Dockerfile
+    container_name: ai-arbeidsdeskundige-db
     ports:
       - "5432:5432"
     environment:
@@ -14,95 +24,241 @@ services:
       - POSTGRES_DB=postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./db/init-scripts:/docker-entrypoint-initdb.d
+      - ./db/init-scripts:/docker-entrypoint-initdb.d  # Auto-run initialization scripts
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
-  # Redis for caching and message queue
+  # Redis for caching, session storage, and Celery message queue
+  # Critical for async processing and performance optimization
   redis:
     image: redis:latest
+    container_name: ai-arbeidsdeskundige-redis
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
-  # Backend API service
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # BACKEND SERVICES
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # FastAPI backend API service
+  # Provides REST API endpoints for all application functionality
+  # Includes AI/RAG improvements: smart classification, optimized processing, monitoring
   backend-api:
     build:
       context: ./app/backend
       dockerfile: Dockerfile
+    container_name: ai-arbeidsdeskundige-backend-api
     ports:
-      - "8000:8000"
+      - "8000:8000"  # API available at http://localhost:8000
     volumes:
-      - ./app/backend:/app
-      - app-storage:/app/storage
+      - ./app/backend:/app  # Live code reloading for development
+      - app-storage:/app/storage  # Persistent file storage
     env_file:
-      - .env
+      - .env  # Load API keys and configuration
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      # Database connection
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_SERVER=db
       - POSTGRES_PORT=5432
       - POSTGRES_DB=postgres
+      
+      # Redis connection for caching and queues
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Storage configuration
+      - STORAGE_PATH=/app/storage
+      
+      # Legacy Supabase compatibility (for gradual migration)
       - SUPABASE_URL=http://localhost:8000
       - SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-      - STORAGE_PATH=/app/storage
+      
+      # Multi-provider LLM support (configured via .env)
+      # Required: At least one of ANTHROPIC_API_KEY or OPENAI_API_KEY
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # AI/RAG Configuration
+      - RAG_CHUNK_SIZE=${RAG_CHUNK_SIZE:-1000}
+      - RAG_CHUNK_OVERLAP=${RAG_CHUNK_OVERLAP:-200}
+      - RAG_MAX_CHUNKS=${RAG_MAX_CHUNKS:-20}
+      - QUALITY_THRESHOLD=${QUALITY_THRESHOLD:-0.75}
+      
+      # Monitoring Configuration
+      - METRICS_RETENTION_HOURS=${METRICS_RETENTION_HOURS:-24}
+      - ALERT_ENABLED=${ALERT_ENABLED:-true}
+      
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Backend worker service for async tasks
+  # Celery worker service for background task processing
+  # Handles: document processing, RAG pipeline, audio transcription, report generation
+  # Supports priority queues for optimal resource allocation
   backend-worker:
     build:
       context: ./app/backend
       dockerfile: Dockerfile.worker
+    container_name: ai-arbeidsdeskundige-backend-worker
     volumes:
-      - ./app/backend:/app
-      - app-storage:/app/storage
+      - ./app/backend:/app  # Live code reloading for development
+      - app-storage:/app/storage  # Access to uploaded documents
     env_file:
-      - .env
+      - .env  # Load API keys and configuration
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      # Database connection
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_SERVER=db
       - POSTGRES_PORT=5432
       - POSTGRES_DB=postgres
+      
+      # Redis connection for task queues
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Storage configuration
+      - STORAGE_PATH=/app/storage
+      
+      # Legacy Supabase compatibility
       - SUPABASE_URL=http://localhost:8000
       - SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-      - STORAGE_PATH=/app/storage
+      
+      # Multi-provider LLM support
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # AI/RAG Configuration
+      - RAG_CHUNK_SIZE=${RAG_CHUNK_SIZE:-1000}
+      - RAG_CHUNK_OVERLAP=${RAG_CHUNK_OVERLAP:-200}
+      - RAG_MAX_CHUNKS=${RAG_MAX_CHUNKS:-20}
+      - QUALITY_THRESHOLD=${QUALITY_THRESHOLD:-0.75}
+      
+      # Worker-specific configuration
+      - CELERY_WORKER_CONCURRENCY=${CELERY_WORKER_CONCURRENCY:-4}
+      - CELERY_WORKER_PREFETCH=${CELERY_WORKER_PREFETCH:-1}
+      
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # FRONTEND SERVICES
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  # Frontend service for development
+  # Vue.js 3 frontend with TypeScript
+  # Provides modern, responsive web interface for labor experts
+  # Includes: case management, document upload, report generation, user profiles
   frontend:
     build:
       context: ./app/frontend
       dockerfile: Dockerfile
+    container_name: ai-arbeidsdeskundige-frontend
     ports:
-      - "5173:5173"
+      - "5173:5173"  # Frontend available at http://localhost:5173
     volumes:
-      - ./app/frontend:/app
+      - ./app/frontend:/app  # Live code reloading for development
+      - /app/node_modules  # Prevent node_modules override
     environment:
-      - VITE_SUPABASE_URL=http://backend-api:8000
+      # API endpoint configuration
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+      
+      # Legacy Supabase compatibility configuration
+      - VITE_SUPABASE_URL=http://localhost:8000
       - VITE_SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-      - VITE_API_BASE_URL=http://backend-api:8000/api/v1
+      
+      # Development configuration
+      - NODE_ENV=development
+      - VITE_HOT_RELOAD=true
+      
     depends_on:
       - backend-api
+    restart: unless-stopped
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PERSISTENT VOLUMES
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 volumes:
+  # Redis data persistence
   redis-data:
+    driver: local
+    
+  # PostgreSQL data persistence
+  # Includes: application data, vector embeddings, user profiles
   postgres-data:
+    driver: local
+    
+  # Application file storage
+  # Includes: uploaded documents, generated reports, user profile images
   app-storage:
+    driver: local
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CONFIGURATION NOTES
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Required .env file configuration:
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ # LLM Provider (choose one: anthropic, openai, google)                │
+# │ LLM_PROVIDER=anthropic                                                 │
+# │                                                                        │
+# │ # API Keys (at least one required)                                    │
+# │ ANTHROPIC_API_KEY=your_anthropic_api_key_here                         │
+# │ OPENAI_API_KEY=your_openai_api_key_here                               │
+# │                                                                        │
+# │ # Optional: Advanced RAG Configuration                                │
+# │ RAG_CHUNK_SIZE=1000                                                    │
+# │ RAG_CHUNK_OVERLAP=200                                                  │
+# │ RAG_MAX_CHUNKS=20                                                      │
+# │ QUALITY_THRESHOLD=0.75                                                 │
+# │                                                                        │
+# │ # Optional: Performance Tuning                                        │
+# │ CELERY_WORKER_CONCURRENCY=4                                           │
+# │ METRICS_RETENTION_HOURS=24                                             │
+# └────────────────────────────────────────────────────────────────────────┘
+
+# Service URLs:
+# • Frontend:     http://localhost:5173
+# • Backend API:  http://localhost:8000
+# • API Docs:     http://localhost:8000/docs
+# • PostgreSQL:   localhost:5432
+# • Redis:        localhost:6379
+
+# AI/RAG Features Available:
+# • Smart Document Classification
+# • Optimized RAG Pipeline  
+# • Context-Aware Prompts
+# • Automatic Quality Control
+# • Multi-modal Processing (text + audio)
+# • Complete Pipeline Monitoring
+
+# Quick Start:
+# 1. cp docker-compose.example.env .env
+# 2. Edit .env with your API keys
+# 3. docker-compose up -d
+# 4. Visit http://localhost:5173

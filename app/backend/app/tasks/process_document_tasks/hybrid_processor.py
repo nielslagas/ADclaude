@@ -16,7 +16,7 @@ from app.db.database_service import get_database_service
 from app.tasks.process_document_tasks.document_classifier import (
     DocumentClassifier, DocumentSize, ProcessingStrategy
 )
-from app.utils.vector_store import get_vector_store
+from app.utils.vector_store_improved import get_hybrid_vector_store
 from app.utils.embeddings import generate_embedding
 
 # Set up logging
@@ -25,21 +25,72 @@ logger = logging.getLogger(__name__)
 
 # Initialize services
 db_service = get_database_service()
-vector_store = get_vector_store()
+vector_store = get_hybrid_vector_store(db_service)
+
+
+async def process_document_by_strategy(
+    document_id: str,
+    strategy: ProcessingStrategy,
+    chunks: List[str]
+) -> Dict[str, Any]:
+    """
+    Process a document according to its specific strategy using the hybrid vector store.
+
+    Args:
+        document_id: The ID of the document to process
+        strategy: Processing strategy to apply
+        chunks: Document chunks already created
+
+    Returns:
+        Dictionary with processing results
+    """
+    try:
+        # Prepare chunks in the format expected by the processor
+        formatted_chunks = []
+        for i, content in enumerate(chunks):
+            chunk_id = f"{document_id}_chunk_{i}"
+            formatted_chunks.append({
+                "id": chunk_id,
+                "content": content,
+                "index": i
+            })
+
+        # Process using the appropriate strategy
+        result = vector_store.process_document_vectors(
+            document_id=document_id,
+            chunks=formatted_chunks,
+            strategy=strategy.value
+        )
+
+        # For direct or hybrid strategies, we mark as processed immediately
+        if strategy in [ProcessingStrategy.DIRECT_LLM, ProcessingStrategy.HYBRID]:
+            # These strategies provide immediate results, so update status
+            db_service.update_document_status(document_id, "processed")
+
+        if strategy == ProcessingStrategy.FULL_RAG:
+            # For full RAG, mark as enhanced once processing is complete
+            if result.get("embeddings_added", 0) > 0:
+                db_service.update_document_status(document_id, "enhanced")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error in strategy-specific processing for document {document_id}: {str(e)}")
+        return {"status": "error", "message": str(e)}
 
 
 async def process_document_hybrid(document_id: str) -> Dict[str, Any]:
     """
     Process a document using the hybrid approach.
-    
+
     This function serves as the main entry point for document processing:
     1. Immediately mark document as "processed" for quick user feedback
     2. Classify document to determine optimal strategy
-    3. Dispatch asynchronous tasks based on strategy
-    
+    3. Process document according to its optimal strategy
+
     Args:
         document_id: The ID of the document to process
-        
+
     Returns:
         Dictionary with processing status and info
     """
@@ -72,17 +123,9 @@ async def process_document_hybrid(document_id: str) -> Dict[str, Any]:
                 metadata={"strategy": strategy.value, "size": size.value}
             )
         
-        # Dispatch appropriate background task based on strategy
-        if strategy == ProcessingStrategy.DIRECT_LLM:
-            # No need for embeddings, document is ready to use
-            logger.info(f"Document {document_id} processed with DIRECT_LLM strategy")
-        else:
-            # Schedule asynchronous embedding generation
-            generate_document_embeddings.apply_async(
-                args=[document_id],
-                priority=priority
-            )
-            logger.info(f"Scheduled embedding generation for document {document_id} with priority {priority}")
+        # Get the strategy-specific processor
+        result = await process_document_by_strategy(document_id, strategy, simple_chunks)
+        logger.info(f"Document {document_id} initial processing with {strategy} strategy: {result}")
         
         processing_time = time.time() - start_time
         logger.info(f"Completed initial processing for document {document_id} in {processing_time:.2f}s")
@@ -192,13 +235,16 @@ def generate_document_embeddings(self, document_id: str, batch_size: int = 5) ->
                     # Generate embedding for the chunk
                     embedding = generate_embedding(content)
                     
-                    # Store embedding in vector store
+                    # Store embedding in vector store with improved metadata
                     vector_store.add_embedding(
                         document_id=document_id,
                         chunk_id=chunk_id,
                         embedding=embedding,
                         content=content,
-                        metadata=chunk.get("metadata", {})
+                        metadata={
+                            **(chunk.get("metadata", {})),
+                            "strategy": chunk.get("metadata", {}).get("strategy", ProcessingStrategy.HYBRID.value)
+                        }
                     )
                     
                     successful_embeddings += 1

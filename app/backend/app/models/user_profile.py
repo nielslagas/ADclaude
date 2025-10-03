@@ -62,16 +62,25 @@ class UserProfileUpdate(UserProfileBase):
 class UserProfile(UserProfileBase):
     """Full user profile model with all fields."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     user_id: UUID
     created_at: datetime
     updated_at: datetime
     logo: Optional[ProfileLogo] = None
 
-class UserProfileResponse(UserProfile):
+class UserProfileResponse(UserProfileBase):
     """User profile model for API response."""
+    model_config = ConfigDict(from_attributes=True)
+
+    # Allow either id or profile_id to be used
+    id: Optional[UUID] = None
+    profile_id: Optional[UUID] = None
+    user_id: UUID
+    created_at: datetime
+    updated_at: datetime
     logo_url: Optional[str] = None
+    logo_id: Optional[UUID] = None
 
 # Models for the profile completion wizard
 class ProfileWizardStep(BaseModel):

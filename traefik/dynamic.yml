@@ -1,0 +1,220 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Traefik Dynamic Configuration for AI-Arbeidsdeskundige
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 
+# Dynamic configuration for:
+# - TLS options and security headers
+# - Rate limiting and DDoS protection
+# - Custom middleware for enhanced security
+# - SSL/TLS cipher suites and protocols
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# TLS Options for modern security
+tls:
+  options:
+    modern:
+      minVersion: "VersionTLS12"
+      maxVersion: "VersionTLS13"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_RSA_WITH_AES_128_GCM_SHA256"
+      curvePreferences:
+        - "CurveP521"
+        - "CurveP384"
+      sniStrict: true
+      alpnProtocols:
+        - "h2"
+        - "http/1.1"
+
+# HTTP Middleware
+http:
+  middlewares:
+    # Security headers middleware
+    secureHeaders:
+      headers:
+        # HTTPS enforcement
+        sslRedirect: true
+        sslTemporaryRedirect: false
+        sslHost: ""
+        sslForceHost: false
+        
+        # Security headers
+        forceSTSHeader: true
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        
+        # Content security
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        
+        # Feature policy
+        featurePolicy: "geolocation 'none'; midi 'none'; camera 'none'; usb 'none'; magnetometer 'none'; accelerometer 'none'; gyroscope 'none'; microphone 'none'"
+        
+        # Custom security headers
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow, nosnippet, noarchive"
+          X-Frame-Options: "SAMEORIGIN"
+          X-Content-Type-Options: "nosniff"
+          Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=()"
+          Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'self'"
+
+    # Rate limiting middleware
+    rateLimit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 60s
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # API rate limiting (more restrictive)
+    apiRateLimit:
+      rateLimit:
+        average: 50
+        burst: 100
+        period: 60s
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # Admin access restrictions
+    adminAccess:
+      ipWhiteList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+    # Compression middleware
+    compression:
+      compress:
+        excludedContentTypes:
+          - "text/event-stream"
+
+    # Circuit breaker for backend health
+    backendCircuit:
+      circuitBreaker:
+        expression: "NetworkErrorRatio() > 0.3 || ResponseCodeRatio(500, 600, 0, 600) > 0.3"
+        checkPeriod: 10s
+        fallbackDuration: 30s
+        recoveryDuration: 10s
+
+    # Retry middleware for resilience
+    backendRetry:
+      retry:
+        attempts: 3
+        initialInterval: 100ms
+
+    # Request timeout
+    timeout:
+      timeout:
+        readTimeout: 30s
+        writeTimeout: 30s
+        idleTimeout: 120s
+
+    # Basic authentication for monitoring endpoints
+    monitoringAuth:
+      basicAuth:
+        users:
+          - "admin:$2y$10$example_hash_here"  # Replace with actual hash
+
+  # Services configuration
+  services:
+    # Backend API load balancer
+    backend-api:
+      loadBalancer:
+        servers:
+          - url: "http://backend-api:8000"
+        healthCheck:
+          path: "/api/health"
+          interval: 30s
+          timeout: 10s
+          scheme: http
+          port: 8000
+        sticky:
+          cookie:
+            name: "backend-session"
+            secure: true
+            httpOnly: true
+            sameSite: "strict"
+
+    # Frontend service
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:80"
+        healthCheck:
+          path: "/health"
+          interval: 30s
+          timeout: 5s
+          scheme: http
+          port: 80
+
+  # Routers configuration
+  routers:
+    # API router with enhanced security
+    api:
+      rule: "Host(`api.${DOMAIN}`)"
+      service: backend-api
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - "secureHeaders@file"
+        - "apiRateLimit@file"
+        - "compression@file"
+        - "backendCircuit@file"
+        - "backendRetry@file"
+        - "timeout@file"
+
+    # Frontend router
+    frontend:
+      rule: "Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
+      service: frontend
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - "secureHeaders@file"
+        - "rateLimit@file"
+        - "compression@file"
+
+    # Admin/monitoring routes with IP restrictions
+    monitoring:
+      rule: "Host(`monitoring.${DOMAIN}`)"
+      service: prometheus
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - "secureHeaders@file"
+        - "adminAccess@file"
+        - "monitoringAuth@file"
+
+    grafana:
+      rule: "Host(`grafana.${DOMAIN}`)"
+      service: grafana
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - "secureHeaders@file"
+        - "adminAccess@file"
+
+    # Traefik dashboard (secure access)
+    dashboard:
+      rule: "Host(`traefik.${DOMAIN}`)"
+      service: api@internal
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - "secureHeaders@file"
+        - "adminAccess@file"
+        - "monitoringAuth@file"

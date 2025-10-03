@@ -59,3 +59,27 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
             detail=f"Invalid token: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+async def require_auth(user_info = Depends(verify_token)):
+    """
+    Require authentication - raises 401 if no valid token is provided
+    """
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Please provide a valid Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user_info
+
+async def get_current_user(user_info = Depends(verify_token)):
+    """
+    Get current authenticated user - same as require_auth but with clearer name
+    """
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Please provide a valid Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user_info

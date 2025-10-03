@@ -10,13 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize provider-specific modules
-if settings.LLM_PROVIDER == "google":
-    logger.info("Using Google Generative AI as LLM provider")
-    import google.generativeai as genai
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    GenerativeModel = genai.GenerativeModel
-    
-elif settings.LLM_PROVIDER == "openai":
+if settings.LLM_PROVIDER == "openai":
     logger.info("Using OpenAI as LLM provider")
     from app.utils.openai_llm import GenerativeModel, configure
     configure(api_key=settings.OPENAI_API_KEY)
@@ -27,27 +21,17 @@ elif settings.LLM_PROVIDER == "anthropic":
     configure(api_key=settings.ANTHROPIC_API_KEY)
     
 else:
-    logger.warning(f"Unknown LLM provider '{settings.LLM_PROVIDER}', defaulting to Google")
-    import google.generativeai as genai
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    GenerativeModel = genai.GenerativeModel
+    logger.warning(f"Unknown LLM provider '{settings.LLM_PROVIDER}', defaulting to Anthropic")
+    from app.utils.claude_llm import GenerativeModel, configure
+    configure(api_key=settings.ANTHROPIC_API_KEY)
 
-# Initialize embedding modules
-if settings.LLM_PROVIDER == "openai":
-    logger.info("Using OpenAI for embeddings")
-    from app.utils.openai_embeddings import (
-        generate_embedding, 
-        generate_query_embedding,
-        calculate_similarity
-    )
-else:
-    # Default to Google's embedding model for other providers
-    logger.info("Using Google for embeddings")
-    from app.utils.embeddings import (
-        generate_embedding, 
-        generate_query_embedding,
-        calculate_similarity
-    )
+# Initialize embedding modules - always use OpenAI for embeddings
+logger.info("Using OpenAI for embeddings")
+from app.utils.openai_embeddings import (
+    generate_embedding, 
+    generate_query_embedding,
+    calculate_similarity
+)
 
 # Standard safety settings that work across providers
 def get_safety_settings(dangerous_content_level="BLOCK_NONE"):

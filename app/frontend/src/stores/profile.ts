@@ -97,7 +97,26 @@ export const useProfileStore = defineStore('profile', () => {
     error.value = null;
 
     try {
-      const { data } = await api.put('/profiles/me', profileData);
+      // Clean the data to only include fields we actually want to update
+      const cleanData: Record<string, any> = {};
+      const allowedFields = [
+        'first_name', 'last_name', 'display_name', 'job_title',
+        'company_name', 'company_description', 'company_address',
+        'company_postal_code', 'company_city', 'company_country',
+        'company_phone', 'company_email', 'company_website',
+        'certification', 'registration_number', 'specializations', 'bio'
+      ];
+
+      // Only include fields that are in the allowed list
+      for (const field of allowedFields) {
+        if (field in profileData) {
+          cleanData[field] = profileData[field];
+        }
+      }
+
+      console.log('Sending clean profile data:', cleanData);
+
+      const { data } = await api.put('/profiles/me', cleanData);
       profile.value = data;
       return data;
     } catch (err: any) {
@@ -140,13 +159,25 @@ export const useProfileStore = defineStore('profile', () => {
     error.value = null;
 
     try {
-      await api.delete('/profiles/me/logo');
+      // Try to delete the logo, but gracefully handle the case where there's no logo
+      try {
+        await api.delete('/profiles/me/logo');
+      } catch (logoErr: any) {
+        // If it's a 404 error (no logo found), just continue
+        if (logoErr.response && logoErr.response.status === 404) {
+          console.log('No logo to delete, continuing...');
+        } else {
+          // For other errors, re-throw
+          throw logoErr;
+        }
+      }
+
       // Refresh profile to reflect logo deletion
       await fetchProfile();
     } catch (err: any) {
       console.error('Error deleting logo:', err);
       error.value = err.message || 'Failed to delete logo';
-      throw err;
+      // Don't throw the error - let the operation complete gracefully
     } finally {
       loading.value = false;
     }
@@ -172,10 +203,25 @@ export const useProfileStore = defineStore('profile', () => {
   // Initialize store by fetching profile
   const initialize = async () => {
     try {
-      await fetchProfile();
-      await fetchCompletionStatus();
+      console.log('Initializing profile store...');
+      const profileData = await fetchProfile();
+      console.log('Profile fetched:', profileData);
+
+      try {
+        const completionData = await fetchCompletionStatus();
+        console.log('Completion status fetched:', completionData);
+      } catch (completionErr) {
+        console.error('Error fetching completion status:', completionErr);
+        // Continue even if completion status fails
+      }
+
+      return profileData;
     } catch (err) {
       console.error('Error initializing profile store:', err);
+      error.value = typeof err === 'object' && err !== null && 'message' in err
+        ? String(err.message)
+        : 'Failed to initialize profile';
+      throw err;
     }
   };
 

@@ -104,7 +104,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Initialize on store creation - wrap in setTimeout to ensure it runs after Vue app is mounted
   setTimeout(() => {
+    console.log("Initializing auth store...");
     initialize()
+      .then(() => console.log("Auth store initialized, user state:", user.value ? "logged in" : "not logged in"))
+      .catch(err => console.error("Auth store initialization failed:", err));
   }, 100)
 
   return {

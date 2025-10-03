@@ -14,6 +14,29 @@ const getApiBaseUrl = () => {
   return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 };
 
+// Helper function to convert relative API URLs to full URLs
+export const getFullApiUrl = (path: string): string => {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    // Already a full URL
+    return path;
+  }
+  
+  const baseUrl = getApiBaseUrl();
+  
+  if (path.startsWith('/api/v1/')) {
+    // Convert /api/v1/... to http://hostname:8000/api/v1/...
+    return `${baseUrl.replace('/api/v1', '')}${path}`;
+  }
+  
+  if (path.startsWith('/')) {
+    // Convert /... to http://hostname:8000/api/v1/...
+    return `${baseUrl}${path}`;
+  }
+  
+  // No leading slash, add it
+  return `${baseUrl}/${path}`;
+};
+
 const apiClient = axios.create({
   baseURL: getApiBaseUrl(),
   headers: {
@@ -25,7 +48,12 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(async (config) => {
   try {
     console.log(`Request to ${config.method?.toUpperCase()} ${config.url}`)
-    console.log("Request data:", config.data)
+    // Don't log FormData as it can consume the file stream
+    if (!(config.data instanceof FormData)) {
+      console.log("Request data:", config.data)
+    } else {
+      console.log("Request data: FormData (file upload)")
+    }
     
     const { data } = await supabase.auth.getSession()
     console.log("Session data:", data)
@@ -36,39 +64,59 @@ apiClient.interceptors.request.use(async (config) => {
       console.log("Auth token added to request")
     } else {
       console.warn("No auth token available")
-      // For development only - always add a mock token if none exists
-      config.headers.Authorization = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJleGFtcGxlX3VzZXJfaWQiLCJuYW1lIjoiVGVzdCBVc2VyIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+      // For development only - use token with real user ID (Niels Lagas)
+      config.headers.Authorization = 'Bearer eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0.eyJzdWIiOiAiOTI3MzQyYWQtZDVhMC00Zjg4LTliYzMtODBmNzcwMjA3M2UwIiwgIm5hbWUiOiAiTmllbHMgTGFnYXMiLCAiaWF0IjogMTUxNjIzOTAyMn0.'
       console.log("Mock token added to request")
     }
   } catch (err) {
     console.error("Error getting auth session:", err)
-    // For development only - always add a mock token if error occurs
-    config.headers.Authorization = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJleGFtcGxlX3VzZXJfaWQiLCJuYW1lIjoiVGVzdCBVc2VyIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+    // For development only - use token with real user ID (Niels Lagas) after error
+    config.headers.Authorization = 'Bearer eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0.eyJzdWIiOiAiOTI3MzQyYWQtZDVhMC00Zjg4LTliYzMtODBmNzcwMjA3M2UwIiwgIm5hbWUiOiAiTmllbHMgTGFnYXMiLCAiaWF0IjogMTUxNjIzOTAyMn0.'
     console.log("Mock token added to request after error")
   }
   
   return config
 })
 
-// Handle common errors
+// Enhanced error logging
 apiClient.interceptors.response.use(
-  response => response,
+  response => {
+    console.log(`Response from ${response.config.url}:`, response.status, response.data);
+    return response;
+  },
   error => {
-    const status = error.response?.status
+    console.error('API Error:', error);
+    const status = error.response?.status;
 
-    if (status === 401) {
-      // Handle unauthorized - redirect to login or refresh token
-      console.error('Unauthorized request')
-    } else if (status === 403) {
-      console.error('Forbidden request')
-    } else if (status === 404) {
-      console.error('Resource not found')
-    } else if (status === 500) {
-      console.error('Server error')
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response.data);
+      console.error('Response headers:', error.response.headers);
+      console.error('Request URL:', error.config?.url);
+      console.error('Request method:', error.config?.method);
+      console.error('Request data:', error.config?.data);
+
+      if (status === 401) {
+        console.error('Unauthorized request - Authentication failed');
+      } else if (status === 403) {
+        console.error('Forbidden request - Permission denied');
+      } else if (status === 404) {
+        console.error('Resource not found - Check URL and parameters');
+      } else if (status === 500) {
+        console.error('Server error - Check backend logs');
+      } else {
+        console.error(`Unexpected status code: ${status}`);
+      }
+    } else if (error.request) {
+      console.error('No response received - Network or CORS issue');
+      console.error('Request details:', error.request);
+    } else {
+      console.error('Error setting up request:', error.message);
     }
 
-    return Promise.reject(error)
+    return Promise.reject(error);
   }
 )
 
 export { apiClient }
+export default apiClient

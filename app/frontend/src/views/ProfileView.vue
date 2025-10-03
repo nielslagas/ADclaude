@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useProfileStore, UserProfile } from '@/stores/profile';
 import { useRouter } from 'vue-router';
+import { getFullApiUrl } from '@/services/api';
 
 const profileStore = useProfileStore();
 const router = useRouter();
@@ -62,8 +63,23 @@ const saveProfile = async () => {
     logoFile.value = null;
     logoPreview.value = null;
   } catch (err: any) {
-    formError.value = 'Er is een fout opgetreden bij het opslaan van het profiel.';
+    // Set a more specific error message if available
+    if (err.response && err.response.data && err.response.data.detail) {
+      formError.value = `Fout bij opslaan: ${err.response.data.detail}`;
+    } else if (err.message) {
+      formError.value = `Fout bij opslaan: ${err.message}`;
+    } else {
+      formError.value = 'Er is een fout opgetreden bij het opslaan van het profiel.';
+    }
+
+    // Log detailed error information
     console.error('Error saving profile:', err);
+    console.error('Error details:', {
+      status: err.response?.status,
+      statusText: err.response?.statusText,
+      data: err.response?.data,
+      message: err.message
+    });
   } finally {
     isSaving.value = false;
   }
@@ -72,10 +88,31 @@ const saveProfile = async () => {
 const handleLogoChange = (event: Event) => {
   const input = event.target as HTMLInputElement;
   if (input.files && input.files.length > 0) {
-    logoFile.value = input.files[0];
-    
-    // Create preview URL
-    logoPreview.value = URL.createObjectURL(logoFile.value);
+    const file = input.files[0];
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      formError.value = "Het logo is te groot. Maximale bestandsgrootte is 2MB.";
+      // Reset the file input
+      input.value = '';
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/svg+xml"];
+    if (!allowedTypes.includes(file.type)) {
+      formError.value = "Ongeldig bestandsformaat. Ondersteunde formaten: JPG, PNG, GIF, SVG.";
+      // Reset the file input
+      input.value = '';
+      return;
+    }
+
+    // Clear any previous errors
+    formError.value = null;
+
+    // Set the file and create preview
+    logoFile.value = file;
+    logoPreview.value = URL.createObjectURL(file);
   }
 };
 
@@ -124,18 +161,25 @@ const removeSpecialization = (index: number) => {
 
 // Initialize
 onMounted(async () => {
-  if (!profileStore.profile) {
-    await profileStore.initialize();
-  }
-  
-  // Start with the first incomplete step
-  if (profileStore.completionStatus) {
-    for (const step of profileStore.completionStatus.steps) {
-      if (!step.completed) {
-        activeStep.value = step.step_number;
-        break;
+  try {
+    console.log("ProfileView mounted, initializing...");
+    if (!profileStore.profile) {
+      await profileStore.initialize();
+    }
+    console.log("Profile initialized:", profileStore.profile);
+
+    // Start with the first incomplete step
+    if (profileStore.completionStatus) {
+      for (const step of profileStore.completionStatus.steps) {
+        if (!step.completed) {
+          activeStep.value = step.step_number;
+          break;
+        }
       }
     }
+  } catch (err) {
+    console.error("Error initializing profile:", err);
+    formError.value = "Er is een fout opgetreden bij het laden van het profiel.";
   }
 });
 </script>
@@ -170,7 +214,7 @@ onMounted(async () => {
     <div v-else-if="!isEditing && profileStore.profile" class="profile-container">
       <div class="profile-header">
         <div class="profile-avatar">
-          <img v-if="profileStore.profile.logo_url" :src="profileStore.profile.logo_url" alt="Logo" class="profile-logo">
+          <img v-if="profileStore.profile.logo_url" :src="getFullApiUrl(profileStore.profile.logo_url)" alt="Logo" class="profile-logo">
           <div v-else class="profile-logo-placeholder">
             <i class="fas fa-building"></i>
           </div>
@@ -422,7 +466,7 @@ onMounted(async () => {
         <div class="logo-upload-container">
           <div class="logo-preview">
             <img v-if="logoPreview" :src="logoPreview" alt="Logo preview" class="preview-image">
-            <img v-else-if="profileStore.profile?.logo_url" :src="profileStore.profile.logo_url" alt="Current logo" class="preview-image">
+            <img v-else-if="profileStore.profile?.logo_url" :src="getFullApiUrl(profileStore.profile.logo_url)" alt="Current logo" class="preview-image">
             <div v-else class="preview-placeholder">
               <i class="fas fa-building"></i>
               <p>Geen logo</p>
@@ -447,7 +491,7 @@ onMounted(async () => {
             </button>
           </div>
           <div class="logo-info">
-            <p>Upload een bedrijfslogo dat in uw rapporten zal worden gebruikt. Aanbevolen formaat is 300x100 pixels.</p>
+            <p>Upload een bedrijfslogo dat in uw rapporten zal worden gebruikt. Aanbevolen formaat is 200x200 pixels.</p>
             <p>Ondersteunde formaten: JPG, PNG, GIF, SVG</p>
           </div>
         </div>
@@ -574,19 +618,23 @@ onMounted(async () => {
 }
 
 .profile-avatar {
-  width: 120px;
-  height: 120px;
+  width: 200px;
+  height: 200px;
   margin-right: 2rem;
   flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .profile-logo {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
   background-color: white;
+  display: block;
 }
 
 .profile-logo-placeholder {
@@ -822,8 +870,8 @@ onMounted(async () => {
 }
 
 .logo-preview {
-  width: 300px;
-  height: 150px;
+  width: 200px;
+  height: 200px;
   border: 2px dashed #ccc;
   border-radius: 8px;
   display: flex;
@@ -835,9 +883,11 @@ onMounted(async () => {
 }
 
 .preview-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Fill the container while maintaining aspect ratio */
+  object-position: center; /* Center the image */
+  display: block;
 }
 
 .preview-placeholder {

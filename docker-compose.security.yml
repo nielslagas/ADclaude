@@ -1,0 +1,204 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Security Hardened Docker Compose Override for AI-Arbeidsdeskundige
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 
+# Security enhancements:
+# - Container security scanning
+# - Resource limits and constraints
+# - Network policies and isolation
+# - Security monitoring
+# - Vulnerability scanning and remediation
+#
+# Usage:
+#   docker-compose -f docker-compose.prod.yml -f docker-compose.security.yml up -d
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+version: '3.8'
+
+services:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # SECURITY SCANNING SERVICE
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  
+  # Trivy security scanner for container images
+  trivy:
+    image: aquasec/trivy:latest
+    container_name: ai-arbeidsdeskundige-security-scanner
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - trivy-cache:/root/.cache/trivy
+      - ./security/scan-results:/reports
+    networks:
+      - ai-arbeidsdeskundige-network
+    command: ['sleep', 'infinity']  # Keep container running for on-demand scans
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # SECURITY MONITORING
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  
+  # Falco for runtime security monitoring
+  falco:
+    image: falcosecurity/falco-no-driver:latest
+    container_name: ai-arbeidsdeskundige-falco
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock:ro
+      - /dev:/host/dev:ro
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      - /usr:/host/usr:ro
+      - /etc:/host/etc:ro
+      - ./security/falco/falco.yaml:/etc/falco/falco.yaml:ro
+      - ./security/falco/rules:/etc/falco/rules:ro
+    networks:
+      - ai-arbeidsdeskundige-network
+    environment:
+      - SKIP_DRIVER_LOADER=yes
+    command:
+      - /usr/bin/falco
+      - --cri
+      - /var/run/docker.sock
+      - --k8s-api
+      - http://localhost:8080
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.3'
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # ENHANCED SECURITY FOR EXISTING SERVICES
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Database security enhancements
+  db:
+    security_opt:
+      - no-new-privileges:true
+      - apparmor:docker-default
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    read_only: false  # PostgreSQL needs write access
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /var/tmp:noexec,nosuid,size=50m
+    sysctls:
+      - net.core.somaxconn=1024
+      - vm.overcommit_memory=2
+      - vm.overcommit_ratio=80
+
+  # Redis security enhancements
+  redis:
+    security_opt:
+      - no-new-privileges:true
+      - apparmor:docker-default
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=50m
+
+  # Backend API security enhancements
+  backend-api:
+    security_opt:
+      - no-new-privileges:true
+      - apparmor:docker-default
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /var/tmp:noexec,nosuid,size=50m
+    sysctls:
+      - net.core.somaxconn=1024
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+
+  # Worker security enhancements
+  backend-worker:
+    security_opt:
+      - no-new-privileges:true
+      - apparmor:docker-default
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=200m
+      - /var/tmp:noexec,nosuid,size=100m
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+
+  # Frontend security enhancements
+  frontend:
+    security_opt:
+      - no-new-privileges:true
+      - apparmor:docker-default
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=50m
+      - /var/cache/nginx:noexec,nosuid,size=100m
+      - /var/run:noexec,nosuid,size=10m
+
+  # Traefik security enhancements
+  traefik:
+    security_opt:
+      - no-new-privileges:true
+      - apparmor:docker-default
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=50m
+
+  # Backup service security enhancements
+  backup:
+    security_opt:
+      - no-new-privileges:true
+      - apparmor:docker-default
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - FOWNER
+    read_only: false  # Needs write access for backups
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECURITY VOLUMES
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+volumes:
+  trivy-cache:
+    driver: local

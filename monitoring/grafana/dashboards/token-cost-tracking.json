@@ -1,0 +1,394 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "AI-Arbeidsdeskundige Token Cost Tracking",
+    "tags": ["tokens", "cost", "llm", "optimization"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "5m",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Cost (24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(ai_arbeidsdeskundige_token_cost_usd[24h]))",
+            "legendFormat": "Total Cost"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 10},
+                {"color": "red", "value": 50}
+              ]
+            },
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Total Tokens (24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(ai_arbeidsdeskundige_token_usage[24h]))",
+            "legendFormat": "Total Tokens"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Average Cost per Request",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(ai_arbeidsdeskundige_token_cost_usd[1h])) / sum(increase(ai_arbeidsdeskundige_token_usage_count[1h]))",
+            "legendFormat": "Avg Cost/Request"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 4
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Cost Trend",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "(sum(increase(ai_arbeidsdeskundige_token_cost_usd[6h])) - sum(increase(ai_arbeidsdeskundige_token_cost_usd[6h] offset 6h))) / sum(increase(ai_arbeidsdeskundige_token_cost_usd[6h] offset 6h)) * 100",
+            "legendFormat": "Cost Change %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": -20},
+                {"color": "yellow", "value": 0},
+                {"color": "red", "value": 20}
+              ]
+            },
+            "unit": "percent",
+            "decimals": 1
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "Cost by Provider",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (provider) (increase(ai_arbeidsdeskundige_token_cost_usd[24h]))",
+            "legendFormat": "{{provider}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "currencyUSD"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "pieType": "pie",
+          "tooltip": {"mode": "single", "sort": "none"},
+          "legend": {
+            "displayMode": "list",
+            "placement": "right"
+          },
+          "displayLabels": ["percent"]
+        },
+        "gridPos": {"h": 10, "w": 8, "x": 0, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Cost by Component",
+        "type": "barchart",
+        "targets": [
+          {
+            "expr": "sum by (component) (increase(ai_arbeidsdeskundige_token_cost_usd[24h]))",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "currencyUSD"
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "xField": "component"
+        },
+        "gridPos": {"h": 10, "w": 8, "x": 8, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "Token Usage Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(ai_arbeidsdeskundige_token_usage[5m])",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "tokensps",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10
+            }
+          }
+        },
+        "gridPos": {"h": 10, "w": 8, "x": 16, "y": 8}
+      },
+      {
+        "id": 8,
+        "title": "Cost Over Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "sum(rate(ai_arbeidsdeskundige_token_cost_usd[5m])) * 300",
+            "legendFormat": "Cost Rate (per 5min)"
+          },
+          {
+            "expr": "sum(increase(ai_arbeidsdeskundige_token_cost_usd[1h]))",
+            "legendFormat": "Hourly Cost"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "currencyUSD",
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 15
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18}
+      },
+      {
+        "id": 9,
+        "title": "Provider Efficiency Comparison",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "sum by (provider) (increase(ai_arbeidsdeskundige_token_cost_usd[24h])) / sum by (provider) (increase(ai_arbeidsdeskundige_quality_score_total[24h]))",
+            "legendFormat": "{{provider}}",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "color": {"mode": "continuous-GrYlRd"},
+            "displayName": "Cost per Quality Point"
+          }
+        },
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true
+              },
+              "renameByName": {
+                "provider": "Provider",
+                "Value": "Cost/Quality"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18}
+      },
+      {
+        "id": 10,
+        "title": "Token Cost per Model",
+        "type": "barchart",
+        "targets": [
+          {
+            "expr": "sum by (model) (increase(ai_arbeidsdeskundige_token_cost_usd[24h]))",
+            "legendFormat": "{{model}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "currencyUSD"
+          }
+        },
+        "options": {
+          "orientation": "vertical"
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 26}
+      },
+      {
+        "id": 11,
+        "title": "Input vs Output Token Ratio",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "sum(rate(ai_arbeidsdeskundige_output_tokens[5m])) / sum(rate(ai_arbeidsdeskundige_input_tokens[5m]))",
+            "legendFormat": "Output/Input Ratio"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 26}
+      },
+      {
+        "id": 12,
+        "title": "Cost Optimization Alerts",
+        "type": "alertlist", 
+        "options": {
+          "showOptions": "changes",
+          "maxItems": 15,
+          "sortOrder": "time desc",
+          "dashboardAlerts": false,
+          "alertInstanceLabelFilter": "{service=\"rag-pipeline\",alertname=~\".*[Tt]oken.*|.*[Cc]ost.*\"}"
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 34}
+      },
+      {
+        "id": 13,
+        "title": "Cost Budget Status",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "sum(increase(ai_arbeidsdeskundige_token_cost_usd[24h])) / 100",
+            "legendFormat": "Daily Budget Usage"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 0.7},
+                {"color": "red", "value": 0.9}
+              ]
+            },
+            "min": 0,
+            "max": 1,
+            "unit": "percentunit"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 34}
+      },
+      {
+        "id": 14,
+        "title": "Optimization Suggestions",
+        "type": "text",
+        "options": {
+          "mode": "markdown",
+          "content": "## Cost Optimization Strategies\n\n### Current Analysis\n- Monitor cost trends and provider efficiency\n- Track token usage patterns across components\n- Identify high-cost operations and models\n\n### Optimization Actions\n1. **Provider Selection**: Use most cost-effective providers for each use case\n2. **Model Optimization**: Consider smaller models for simple tasks\n3. **Prompt Engineering**: Reduce output tokens with more focused prompts\n4. **Caching**: Implement aggressive caching for repeated queries\n5. **Quality Thresholds**: Balance quality requirements with cost\n\n### Budget Management\n- **Daily Budget**: $100 (adjust based on usage)\n- **Alert Thresholds**: 70% warning, 90% critical\n- **Cost per Quality Point**: Target <$0.05\n\n### Best Practices\n- Use Claude Haiku for simple classification tasks\n- Reserve GPT-4 for complex reasoning\n- Implement request batching where possible\n- Regular review of token pricing updates"
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 34}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "provider",
+          "type": "query",
+          "query": "label_values(ai_arbeidsdeskundige_token_usage, provider)",
+          "refresh": "on_time_range_change",
+          "includeAll": true,
+          "allValue": ".*"
+        },
+        {
+          "name": "component",
+          "type": "query", 
+          "query": "label_values(ai_arbeidsdeskundige_token_usage, component)",
+          "refresh": "on_time_range_change",
+          "includeAll": true,
+          "allValue": ".*"
+        },
+        {
+          "name": "budget",
+          "type": "custom",
+          "query": "50,100,200,500",
+          "current": {
+            "selected": false,
+            "text": "100",
+            "value": "100"
+          }
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Cost Alerts",
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "ALERTS{alertstate=\"firing\",alertname=~\".*[Tt]oken.*|.*[Cc]ost.*\"}",
+          "iconColor": "orange",
+          "titleFormat": "{{alertname}}: {{summary}}"
+        }
+      ]
+    }
+  }
+}

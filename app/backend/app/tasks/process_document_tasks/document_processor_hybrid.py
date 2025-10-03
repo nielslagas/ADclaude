@@ -119,6 +119,185 @@ def process_document_hybrid(document_id: str):
         elif mimetype == "text/plain":
             # For .txt files
             text_content = file_content.decode("utf-8")
+        elif mimetype == "application/pdf":
+            # For .pdf files
+            try:
+                import pdfplumber
+                import io
+
+                logger.info(f"Processing PDF file: {document['filename']}")
+
+                with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+                    text_pages = []
+                    total_pages = len(pdf.pages)
+                    logger.info(f"PDF has {total_pages} pages")
+
+                    for page_num, page in enumerate(pdf.pages, 1):
+                        try:
+                            text = page.extract_text()
+                            if text:
+                                text_pages.append(f"--- Pagina {page_num} van {total_pages} ---\n{text}")
+                                logger.debug(f"Extracted {len(text)} characters from page {page_num}")
+                        except Exception as page_error:
+                            logger.error(f"Error extracting text from page {page_num}: {page_error}")
+                            text_pages.append(f"--- Pagina {page_num} van {total_pages} ---\n[Fout bij extractie]")
+
+                    text_content = "\n\n".join(text_pages)
+
+                    # Detect if PDF is scanned (minimal extractable text) and attempt OCR
+                    if len(text_content.strip()) < 100:
+                        logger.warning(f"PDF {document['filename']} appears to be scanned - only {len(text_content.strip())} characters extracted")
+                        logger.warning("Attempting OCR on scanned PDF")
+
+                        from app.utils.ocr_processor import ocr_pdf, is_tesseract_available
+
+                        if is_tesseract_available():
+                            logger.info(f"Running OCR on scanned PDF: {document['filename']}")
+
+                            # Run OCR with Dutch and English language support
+                            ocr_text = ocr_pdf(file_content, language="nld+eng", dpi=300)
+
+                            if ocr_text and len(ocr_text.strip()) > 100:
+                                text_content = ocr_text
+                                logger.info(f"OCR successful: {len(ocr_text)} characters extracted from scanned PDF")
+
+                                # Update document metadata to reflect OCR success
+                                db_service.update_row_by_id(
+                                    "document",
+                                    document_id,
+                                    {
+                                        "metadata": {
+                                            "scanned_document": True,
+                                            "ocr_processed": True,
+                                            "text_extracted": len(ocr_text),
+                                            "ocr_language": "nld+eng"
+                                        }
+                                    }
+                                )
+                            else:
+                                logger.warning("OCR extracted minimal text from scanned PDF")
+
+                                # Update metadata to flag OCR attempt with minimal results
+                                db_service.update_row_by_id(
+                                    "document",
+                                    document_id,
+                                    {
+                                        "metadata": {
+                                            "scanned_document": True,
+                                            "ocr_processed": True,
+                                            "ocr_successful": False,
+                                            "text_extracted": len(text_content.strip()),
+                                            "warning": "OCR extracted minimal text - document may be low quality"
+                                        }
+                                    }
+                                )
+
+                                if not text_content.strip():
+                                    text_content = f"[Dit PDF-document is gescand. OCR verwerking uitgevoerd maar minimale tekst geëxtraheerd. Document mogelijk van lage kwaliteit. Bestand: {document['filename']}]"
+                        else:
+                            logger.error("Tesseract not available - cannot OCR scanned PDF")
+
+                            # Update metadata to flag missing OCR capability
+                            db_service.update_row_by_id(
+                                "document",
+                                document_id,
+                                {
+                                    "metadata": {
+                                        "scanned_document": True,
+                                        "text_extracted": len(text_content.strip()),
+                                        "ocr_recommended": True,
+                                        "ocr_available": False,
+                                        "warning": "Minimal text extracted - OCR not available on this server"
+                                    }
+                                }
+                            )
+
+                            if not text_content.strip():
+                                text_content = f"[Dit PDF-document lijkt gescand te zijn zonder tekst. OCR-verwerking is niet beschikbaar op deze server. Bestand: {document['filename']}]"
+                    else:
+                        logger.info(f"Successfully extracted {len(text_content)} characters from PDF")
+
+            except ImportError:
+                logger.error("pdfplumber not installed - cannot process PDF")
+                text_content = "[PDF-verwerking mislukt: pdfplumber library niet geïnstalleerd]"
+                db_service.update_document_status(document_id, "failed", "PDF library niet beschikbaar")
+                return {"status": "failed", "document_id": document_id, "error": "PDF library niet beschikbaar"}
+            except Exception as pdf_error:
+                logger.error(f"PDF processing failed for {document['filename']}: {pdf_error}")
+                text_content = f"[PDF-verwerking mislukt: {str(pdf_error)}]"
+                db_service.update_document_status(document_id, "failed", f"PDF verwerking fout: {str(pdf_error)}")
+                return {"status": "failed", "document_id": document_id, "error": str(pdf_error)}
+        elif mimetype.startswith("image/"):
+            # For image files (JPG, PNG, TIFF, etc.)
+            logger.info(f"Processing image file: {document['filename']} with OCR")
+
+            from app.utils.ocr_processor import extract_text_with_ocr, is_tesseract_available
+
+            if is_tesseract_available():
+                try:
+                    # Extract text from image using OCR
+                    text_content = extract_text_with_ocr(
+                        file_content,
+                        language="nld+eng",
+                        dpi=300
+                    )
+
+                    if text_content and len(text_content.strip()) > 50:
+                        logger.info(f"OCR successful: {len(text_content)} characters extracted from image")
+
+                        # Update document metadata
+                        db_service.update_row(
+                            "document",
+                            document_id,
+                            {
+                                "metadata": {
+                                    "image_document": True,
+                                    "ocr_processed": True,
+                                    "text_extracted": len(text_content),
+                                    "ocr_language": "nld+eng"
+                                }
+                            }
+                        )
+                    else:
+                        logger.warning(f"OCR extracted minimal text from image {document['filename']}")
+                        text_content = f"[Afbeelding verwerkt met OCR maar minimale tekst geëxtraheerd ({len(text_content.strip())} karakters). Mogelijk is de afbeelding van lage kwaliteit of bevat geen tekst. Bestand: {document['filename']}]"
+
+                        # Update metadata with warning
+                        db_service.update_row(
+                            "document",
+                            document_id,
+                            {
+                                "metadata": {
+                                    "image_document": True,
+                                    "ocr_processed": True,
+                                    "ocr_successful": False,
+                                    "text_extracted": len(text_content.strip()),
+                                    "warning": "OCR extracted minimal text from image"
+                                }
+                            }
+                        )
+
+                except Exception as ocr_error:
+                    logger.error(f"Image OCR failed for {document['filename']}: {ocr_error}")
+                    text_content = f"[Afbeelding OCR-verwerking mislukt: {str(ocr_error)}]"
+                    db_service.update_document_status(document_id, "failed", f"Image OCR fout: {str(ocr_error)}")
+                    return {"status": "failed", "document_id": document_id, "error": str(ocr_error)}
+            else:
+                logger.error("Tesseract not available - cannot process image")
+                text_content = "[OCR niet beschikbaar op deze server - kan afbeelding niet verwerken. Installeer Tesseract OCR voor afbeeldingsondersteuning.]"
+
+                # Update metadata
+                db_service.update_row(
+                    "document",
+                    document_id,
+                    {
+                        "metadata": {
+                            "image_document": True,
+                            "ocr_available": False,
+                            "warning": "OCR not available - cannot process image"
+                        }
+                    }
+                )
         else:
             # Fall back to treating as text for other types
             text_content = file_content.decode("utf-8", errors="ignore")
@@ -176,7 +355,7 @@ def process_document_hybrid(document_id: str):
                     "size_category": size_category
                 }
                 
-                # Store document chunk
+                # Store document chunk using the original method signature
                 chunk_record = db_service.create_document_chunk(
                     document_id=document_id,
                     content=chunk,

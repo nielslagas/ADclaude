@@ -1,6 +1,6 @@
 """
-Ultra-simplified document processor that skips embedding generation
-and just stores document chunks with minimal processing.
+Improved document processor that stores document chunks AND generates embeddings
+for RAG functionality.
 """
 import os
 import logging
@@ -12,6 +12,8 @@ from uuid import UUID
 from app.celery_worker import celery
 from app.db.database_service import db_service
 from app.core.config import settings
+from app.utils.embeddings import generate_embedding
+from app.utils.vector_store_improved import add_embedding
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -44,13 +46,13 @@ def simple_chunking(text, chunk_size, chunk_overlap):
 @celery.task
 def process_document_improved(document_id: str):
     """
-    Ultra-simplified document processor that:
+    Improved document processor that:
     1. Reads the document
     2. Splits it into chunks
     3. Stores the chunks in the database
-    4. Marks the document as processed
-    
-    No embedding generation or complex processing
+    4. Generates embeddings for each chunk
+    5. Stores embeddings for RAG functionality
+    6. Marks the document as processed
     """
     start_time = time.time()
     
@@ -102,9 +104,11 @@ def process_document_improved(document_id: str):
         del text_content
         gc.collect()
         
-        # Store chunks in database
+        # Store chunks in database and generate embeddings
         chunks_processed = 0
         chunks_with_error = 0
+        embeddings_processed = 0
+        embeddings_with_error = 0
         
         for i, chunk in enumerate(chunks):
             # Force gc collection for every chunk to keep memory usage low
@@ -116,7 +120,8 @@ def process_document_improved(document_id: str):
                     "document_name": document["filename"],
                     "chunk_index": i,
                     "total_chunks": len(chunks),
-                    "case_id": document["case_id"]
+                    "case_id": document["case_id"],
+                    "strategy": "hybrid"  # Mark as hybrid strategy
                 }
                 
                 # Store document chunk
@@ -129,6 +134,38 @@ def process_document_improved(document_id: str):
                 
                 if chunk_record:
                     chunks_processed += 1
+                    chunk_id = chunk_record["id"]
+                    
+                    # Generate embedding for this chunk
+                    try:
+                        logger.info(f"Generating embedding for chunk {i+1}/{len(chunks)}")
+                        embedding = generate_embedding(chunk)
+                        
+                        if embedding:
+                            # Store embedding in vector store
+                            embedding_id = add_embedding(
+                                document_id=document_id,
+                                chunk_id=chunk_id,
+                                content=chunk,
+                                embedding=embedding,
+                                metadata=metadata
+                            )
+                            
+                            if embedding_id:
+                                embeddings_processed += 1
+                                logger.info(f"Embedding {i+1}/{len(chunks)} stored successfully")
+                            else:
+                                embeddings_with_error += 1
+                                logger.warning(f"Failed to store embedding for chunk {i}")
+                        else:
+                            embeddings_with_error += 1
+                            logger.warning(f"Failed to generate embedding for chunk {i}")
+                            
+                    except Exception as embedding_error:
+                        embeddings_with_error += 1
+                        logger.error(f"Error generating/storing embedding for chunk {i}: {str(embedding_error)}")
+                        # Continue with other chunks even if embedding fails
+                        
                 else:
                     chunks_with_error += 1
                     
@@ -139,8 +176,19 @@ def process_document_improved(document_id: str):
         # Update document status to processed
         db_service.update_document_status(document_id, "processed")
         
+        # Update document metadata to indicate embeddings are available
+        document_metadata = {
+            "embeddings_available": embeddings_processed > 0,
+            "total_chunks": len(chunks),
+            "chunks_processed": chunks_processed,
+            "embeddings_processed": embeddings_processed,
+            "processing_strategy": "hybrid",
+            "processed_at": datetime.utcnow().isoformat()
+        }
+        db_service.update_document_metadata(document_id, document_metadata)
+        
         total_time = time.time() - start_time
-        logger.info(f"Document processing completed in {total_time:.2f}s: {chunks_processed} chunks processed, {chunks_with_error} chunks with errors")
+        logger.info(f"Document processing completed in {total_time:.2f}s: {chunks_processed} chunks processed, {embeddings_processed} embeddings generated")
         
         return {
             "status": "success", 
@@ -148,6 +196,8 @@ def process_document_improved(document_id: str):
             "chunks_total": len(chunks),
             "chunks_processed": chunks_processed,
             "chunks_with_error": chunks_with_error,
+            "embeddings_processed": embeddings_processed,
+            "embeddings_with_error": embeddings_with_error,
             "processing_time": total_time
         }
     

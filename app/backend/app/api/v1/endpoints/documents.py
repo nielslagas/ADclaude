@@ -51,34 +51,42 @@ async def upload_document(
             detail=f"Error checking case: {str(e)}"
         )
     
-    # Check file size
-    if file.size > settings.MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File size exceeds the maximum allowed size of {settings.MAX_UPLOAD_SIZE / (1024 * 1024)}MB"
-        )
-    
     # Check file type
     print(f"File content_type: {file.content_type}")
     print(f"File filename: {file.filename}")
-    
-    # For MVP, we'll accept files based on extension in addition to content type
+
+    # Accept multiple document and image formats
     is_valid_type = (
-        file.content_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
-                             "application/msword", "text/plain"] or
-        file.filename.endswith(('.docx', '.doc', '.txt'))
+        file.content_type in [
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
+            "text/plain",
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "image/tiff",
+            "image/jpg"
+        ] or
+        file.filename.lower().endswith(('.docx', '.doc', '.txt', '.pdf', '.jpg', '.jpeg', '.png', '.tif', '.tiff'))
     )
-    
+
     if not is_valid_type:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Only .docx and .txt files are supported. Received content type: {file.content_type}"
+            detail=f"Supported formats: .docx, .txt, .pdf, .jpg, .png, .tiff. Received: {file.content_type}"
         )
-    
+
     try:
-        # Read file content
+        # Read file content first
         file_content = await file.read()
         print(f"File read, size: {len(file_content)} bytes")
+
+        # Check file size after reading
+        if len(file_content) > settings.MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File size exceeds the maximum allowed size of {settings.MAX_UPLOAD_SIZE / (1024 * 1024)}MB"
+            )
         
         # Create a storage path for this file
         storage_path = db_service.get_document_storage_path(user_id, str(case_id), file.filename)

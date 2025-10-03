@@ -1,19 +1,27 @@
 <template>
-  <div class="audio-recorder">
+  <div class="audio-recorder" role="region" aria-label="Audio opname functionaliteit">
     <div class="recorder-controls">
-      <div class="status-indicator" :class="{ 'recording': isRecording }">
+      <div 
+        class="status-indicator" 
+        :class="{ 'recording': isRecording }"
+        role="status"
+        aria-live="polite"
+        :aria-label="isRecording ? `Bezig met opnemen: ${formattedDuration}` : 'Gereed voor opname'"
+      >
         <span v-if="isRecording">Opname: {{ formattedDuration }}</span>
         <span v-else>Klaar om op te nemen</span>
       </div>
       
-      <div class="button-group">
+      <div class="button-group" role="group" aria-label="Opname bedieningsknoppen">
         <button 
           class="btn" 
           :class="isRecording ? 'btn-danger' : 'btn-primary'" 
           @click="toggleRecording" 
           :disabled="isProcessing"
+          :aria-label="isRecording ? 'Stop audio opname' : 'Start audio opname'"
+          :aria-pressed="isRecording"
         >
-          <i class="fas" :class="isRecording ? 'fa-stop' : 'fa-microphone'"></i>
+          <i class="fas" :class="isRecording ? 'fa-stop' : 'fa-microphone'" aria-hidden="true"></i>
           {{ isRecording ? 'Stop Opname' : 'Start Opname' }}
         </button>
         
@@ -22,8 +30,10 @@
           class="btn btn-secondary" 
           @click="playRecording" 
           :disabled="isPlaying || isRecording || isProcessing"
+          :aria-label="isPlaying ? 'Pauzeer audio afspelen' : 'Speel audio opname af'"
+          :aria-pressed="isPlaying"
         >
-          <i class="fas" :class="isPlaying ? 'fa-pause' : 'fa-play'"></i>
+          <i class="fas" :class="isPlaying ? 'fa-pause' : 'fa-play'" aria-hidden="true"></i>
           {{ isPlaying ? 'Pauzeren' : 'Afspelen' }}
         </button>
         
@@ -32,20 +42,33 @@
           class="btn btn-success" 
           @click="saveRecording"
           :disabled="isProcessing"
+          :aria-label="isProcessing ? 'Bezig met opslaan van opname' : 'Sla audio opname op'"
         >
-          <i class="fas" :class="isProcessing ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+          <i class="fas" :class="isProcessing ? 'fa-spinner fa-spin' : 'fa-save'" aria-hidden="true"></i>
           {{ isProcessing ? 'Bezig met verwerken...' : 'Opname Opslaan' }}
         </button>
       </div>
     </div>
     
-    <div v-if="audioUrl && !isRecording" class="audio-preview">
-      <div class="waveform" ref="waveformContainer"></div>
+    <div v-if="audioUrl && !isRecording" class="audio-preview" role="region" aria-label="Audio voorvertoning">
+      <div 
+        class="waveform" 
+        ref="waveformContainer"
+        aria-label="Audio golfvorm visualisatie"
+        role="img"
+      ></div>
       
-      <audio ref="audioPlayer" :src="audioUrl" controls class="audio-player" @ended="isPlaying = false"></audio>
+      <audio 
+        ref="audioPlayer" 
+        :src="audioUrl" 
+        controls 
+        class="audio-player" 
+        @ended="isPlaying = false"
+        aria-label="Audio opname afspelen"
+      ></audio>
     </div>
     
-    <div v-if="audioUrl && !isRecording" class="recording-info">
+    <div v-if="audioUrl && !isRecording" class="recording-info" role="region" aria-label="Opname informatie">
       <div class="form-group">
         <label for="recordingTitle">Titel</label>
         <input 
@@ -55,7 +78,12 @@
           class="form-control" 
           placeholder="Geef een titel aan de opname"
           :disabled="isProcessing"
+          required
+          aria-describedby="recordingTitle-help"
         />
+        <div id="recordingTitle-help" class="form-help">
+          Geef uw opname een duidelijke titel voor eenvoudige herkenning
+        </div>
       </div>
       
       <div class="form-group">
@@ -67,17 +95,29 @@
           rows="3" 
           placeholder="Omschrijf kort wat er in deze opname wordt besproken"
           :disabled="isProcessing"
+          aria-describedby="recordingDescription-help"
         ></textarea>
+        <div id="recordingDescription-help" class="form-help">
+          Optionele beschrijving om context te geven aan uw opname
+        </div>
       </div>
     </div>
     
-    <div v-if="errorMessage" class="alert alert-danger">
+    <div 
+      v-if="errorMessage" 
+      class="alert alert-danger"
+      role="alert"
+      aria-live="assertive"
+    >
+      <span class="sr-only">Fout:</span>
       {{ errorMessage }}
     </div>
   </div>
 </template>
 
 <script>
+import { apiClient } from '@/services/api';
+
 export default {
   name: 'AudioRecorder',
   props: {
@@ -103,7 +143,8 @@ export default {
       audioContext: null,
       audioAnalyser: null,
       audioSource: null,
-      waveform: null
+      waveform: null,
+      api: apiClient // Store the API client as a component property
     }
   },
   computed: {
@@ -202,36 +243,111 @@ export default {
         this.errorMessage = 'Geef uw opname een titel';
         return;
       }
-      
+
       // Set processing state
       this.isProcessing = true;
       this.errorMessage = '';
-      
+
       try {
-        // Create form data for the API
+        console.log("Starting saveRecording process");
+
+        // Log debug information
+        console.log("Audio blob type:", this.audioBlob.type);
+        console.log("Audio blob size:", this.audioBlob.size);
+        console.log("Case ID:", this.caseId);
+        console.log("Title:", this.recordingTitle);
+
+        // Create a FormData object to send the audio file and metadata
         const formData = new FormData();
         formData.append('case_id', this.caseId);
         formData.append('title', this.recordingTitle);
-        formData.append('description', this.recordingDescription || '');
-        formData.append('audio_data', this.audioBlob, 'recording.webm');
-        
-        // Send to API
-        const response = await this.$axios.post('/audio/record/', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+
+        if (this.recordingDescription) {
+          formData.append('description', this.recordingDescription);
+        }
+
+        // Create a file from the blob with appropriate name
+        const audioFileName = `recording_${Date.now()}.${this.getFileExtension(this.audioBlob.type)}`;
+        const audioFile = new File([this.audioBlob], audioFileName, { type: this.audioBlob.type });
+
+        // Add the file to the form data
+        formData.append('audio_file', audioFile);
+
+        console.log("Sending audio to server for processing...");
+
+        // Send the audio to the server
+        const response = await this.api.post('/audio/upload/', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
         });
-        
-        // Emit success event with document info
-        this.$emit('recording-saved', response.data.document);
-        
-        // Reset the recorder
-        this.resetRecorder();
-        
+
+        console.log("Server response:", response.data);
+
+        if (response.data && response.data.status === 'success') {
+          console.log("Audio uploaded successfully. Document ID:", response.data.document.id);
+
+          // Create a temporary document object while waiting for the server to process
+          const document = {
+            id: response.data.document.id,
+            title: this.recordingTitle,
+            description: this.recordingDescription || '',
+            document_type: 'audio',
+            status: 'processing',
+            case_id: this.caseId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            content: "Transcriptie wordt verwerkt...",
+            file_path: URL.createObjectURL(this.audioBlob) // Local URL for playback until server processes
+          };
+
+          // Also save a copy to localStorage for immediate playback
+          this.saveRecordingToLocalStorage(document);
+
+          // Emit success event with the document
+          this.$emit('recording-saved', document);
+
+          // Reset the recorder
+          this.resetRecorder();
+        } else {
+          throw new Error('Server returned an error: ' + JSON.stringify(response.data));
+        }
       } catch (error) {
         console.error('Error saving recording:', error);
-        this.errorMessage = error.response?.data?.detail || 'Fout bij het opslaan van de opname.';
+        this.errorMessage = 'Fout bij het opslaan van de opname: ' + (error.response?.data?.message || error.message);
       } finally {
         this.isProcessing = false;
       }
+    },
+
+    // Helper method to get file extension from MIME type
+    getFileExtension(mimeType) {
+      const extensions = {
+        'audio/webm': 'webm',
+        'audio/mp3': 'mp3',
+        'audio/mp4': 'mp4',
+        'audio/wav': 'wav',
+        'audio/ogg': 'ogg',
+        'audio/mpeg': 'mp3'
+      };
+
+      return extensions[mimeType] || 'webm'; // Default to webm if unknown
+    },
+
+    // Helper method to save recording to localStorage
+    saveRecordingToLocalStorage(document) {
+      // Get existing recordings or initialize empty array
+      const existingRecordings = JSON.parse(localStorage.getItem('audioRecordings') || '[]');
+
+      // Add new recording
+      existingRecordings.push({
+        ...document,
+        audioBlob: this.audioUrl // Store the data URL
+      });
+
+      // Save back to localStorage
+      localStorage.setItem('audioRecordings', JSON.stringify(existingRecordings));
+      console.log("Saved recording to localStorage");
     },
     resetRecorder() {
       this.audioChunks = [];

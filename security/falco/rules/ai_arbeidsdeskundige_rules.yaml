@@ -1,0 +1,296 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Custom Falco Rules for AI-Arbeidsdeskundige Security Monitoring
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 
+# Application-specific security rules for:
+# - AI/RAG pipeline security
+# - Document processing monitoring
+# - Database access patterns
+# - API endpoint security
+# - Container behavior monitoring
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ CONTAINER DEFINITIONS                                                  │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- list: ai_arbeidsdeskundige_containers
+  items: [
+    "ai-arbeidsdeskundige-backend-api",
+    "ai-arbeidsdeskundige-backend-worker",
+    "ai-arbeidsdeskundige-frontend",
+    "ai-arbeidsdeskundige-db",
+    "ai-arbeidsdeskundige-redis"
+  ]
+
+- list: ai_backend_containers
+  items: [
+    "ai-arbeidsdeskundige-backend-api",
+    "ai-arbeidsdeskundige-backend-worker"
+  ]
+
+- list: ai_database_containers
+  items: [
+    "ai-arbeidsdeskundige-db",
+    "ai-arbeidsdeskundige-redis"
+  ]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ SENSITIVE FILE PATHS                                                   │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- list: ai_sensitive_files
+  items: [
+    "/app/.env",
+    "/app/.env.production",
+    "/app/storage",
+    "/var/lib/postgresql/data",
+    "/backups"
+  ]
+
+- list: ai_config_files
+  items: [
+    "/app/app/core/config.py",
+    "/etc/nginx/nginx.conf",
+    "/etc/postgresql/postgresql.conf"
+  ]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ NETWORK SECURITY RULES                                                │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- rule: Unexpected Network Connection from AI Container
+  desc: Detect unexpected network connections from AI containers
+  condition: >
+    (inbound_outbound) and
+    (container.name in (ai_arbeidsdeskundige_containers)) and
+    not (
+      (fd.rip in (private_network_cidrs)) or
+      (fd.rip in ("127.0.0.1", "::1")) or
+      (fd.rport in (80, 443, 5432, 6379, 8000, 5173)) or
+      (fd.rip startswith "172.20.") or
+      (fd.sport in (80, 443, 5432, 6379, 8000, 5173))
+    )
+  output: >
+    Unexpected network connection from AI container
+    (container=%container.name image=%container.image.repository
+    connection=%fd.name proto=%fd.l4proto rip=%fd.rip rport=%fd.rport
+    lip=%fd.lip lport=%fd.lport)
+  priority: WARNING
+  tags: [network, ai_arbeidsdeskundige]
+
+- rule: AI Container Connecting to External API
+  desc: Monitor AI containers connecting to external APIs (LLM providers)
+  condition: >
+    (outbound) and
+    (container.name in (ai_backend_containers)) and
+    (fd.rport in (80, 443)) and
+    not (fd.rip in (private_network_cidrs)) and
+    not (fd.rip startswith "172.20.")
+  output: >
+    AI container connecting to external API
+    (container=%container.name image=%container.image.repository
+    connection=%fd.name rip=%fd.rip rport=%fd.rport
+    command=%proc.cmdline user=%user.name)
+  priority: INFO
+  tags: [network, ai_arbeidsdeskundige, external_api]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ FILE ACCESS SECURITY RULES                                            │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- rule: Unauthorized Access to AI Sensitive Files
+  desc: Detect unauthorized access to sensitive AI application files
+  condition: >
+    (open_read or open_write) and
+    (container.name in (ai_arbeidsdeskundige_containers)) and
+    (fd.name in (ai_sensitive_files) or fd.name startswith "/app/.env") and
+    not (proc.name in (python, postgres, redis-server, nginx))
+  output: >
+    Unauthorized access to sensitive AI file
+    (container=%container.name image=%container.image.repository
+    file=%fd.name process=%proc.name command=%proc.cmdline
+    user=%user.name gid=%group.gid)
+  priority: CRITICAL
+  tags: [filesystem, ai_arbeidsdeskundige, sensitive_data]
+
+- rule: AI Configuration File Modification
+  desc: Detect modifications to AI application configuration files
+  condition: >
+    (open_write or rename or unlink) and
+    (container.name in (ai_arbeidsdeskundige_containers)) and
+    (fd.name in (ai_config_files) or fd.name startswith "/app/app/core/")
+  output: >
+    AI configuration file modified
+    (container=%container.name image=%container.image.repository
+    file=%fd.name process=%proc.name command=%proc.cmdline
+    user=%user.name operation=%evt.type)
+  priority: WARNING
+  tags: [filesystem, ai_arbeidsdeskundige, configuration]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ PROCESS SECURITY RULES                                                │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- rule: Unexpected Process in AI Container
+  desc: Detect unexpected processes running in AI containers
+  condition: >
+    (spawned_process) and
+    (container.name in (ai_arbeidsdeskundige_containers)) and
+    not (proc.name in (
+      python, python3, uvicorn, celery, gunicorn,
+      postgres, postmaster, redis-server, redis-cli,
+      nginx, sh, bash, sleep, curl, wget, tar, gzip,
+      pg_dump, pg_restore, find, cat, grep, awk, sed
+    ))
+  output: >
+    Unexpected process in AI container
+    (container=%container.name image=%container.image.repository
+    process=%proc.name command=%proc.cmdline
+    parent=%proc.pname user=%user.name)
+  priority: WARNING
+  tags: [process, ai_arbeidsdeskundige]
+
+- rule: AI Container Privilege Escalation Attempt
+  desc: Detect privilege escalation attempts in AI containers
+  condition: >
+    (spawned_process) and
+    (container.name in (ai_arbeidsdeskundige_containers)) and
+    (proc.name in (su, sudo, setuid, chmod, chown)) and
+    not (user.name in (root, postgres, backup))
+  output: >
+    Potential privilege escalation in AI container
+    (container=%container.name image=%container.image.repository
+    process=%proc.name command=%proc.cmdline
+    user=%user.name target_user=%proc.auid)
+  priority: CRITICAL
+  tags: [process, ai_arbeidsdeskundige, privilege_escalation]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ DATABASE SECURITY RULES                                               │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- rule: Suspicious Database Query Activity
+  desc: Detect suspicious database query patterns
+  condition: >
+    (spawned_process) and
+    (container.name = "ai-arbeidsdeskundige-db") and
+    (proc.name in (psql, pg_dump, pg_restore)) and
+    (proc.cmdline contains "DROP" or
+     proc.cmdline contains "DELETE" or
+     proc.cmdline contains "TRUNCATE" or
+     proc.cmdline contains "ALTER USER")
+  output: >
+    Suspicious database query activity
+    (container=%container.name process=%proc.name
+    command=%proc.cmdline user=%user.name)
+  priority: WARNING
+  tags: [database, ai_arbeidsdeskundige, sql]
+
+- rule: Database Backup Access Outside Schedule
+  desc: Detect database backup operations outside normal schedule
+  condition: >
+    (open_read) and
+    (container.name = "ai-arbeidsdeskundige-db") and
+    (fd.name startswith "/var/lib/postgresql/data") and
+    not (proc.name in (postgres, postmaster, pg_dump)) and
+    not (user.name = "backup")
+  output: >
+    Database backup access outside normal process
+    (container=%container.name file=%fd.name
+    process=%proc.name user=%user.name command=%proc.cmdline)
+  priority: WARNING
+  tags: [database, ai_arbeidsdeskundige, backup]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ API SECURITY RULES                                                    │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- rule: High Volume API Requests
+  desc: Detect potentially malicious high-volume API requests
+  condition: >
+    (inbound) and
+    (container.name = "ai-arbeidsdeskundige-backend-api") and
+    (fd.rport = 8000) and
+    (evt.count > 100)
+  output: >
+    High volume API requests detected
+    (container=%container.name client_ip=%fd.rip
+    requests=%evt.count port=%fd.lport)
+  priority: WARNING
+  tags: [network, ai_arbeidsdeskundige, api, ddos]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ CONTAINER RUNTIME SECURITY                                            │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- rule: AI Container Filesystem Modification
+  desc: Detect unexpected filesystem modifications in read-only containers
+  condition: >
+    (open_write or rename or unlink or mkdir or rmdir) and
+    (container.name in (ai_arbeidsdeskundige_containers)) and
+    not (fd.name startswith "/tmp/" or
+         fd.name startswith "/var/tmp/" or
+         fd.name startswith "/app/storage/" or
+         fd.name startswith "/var/lib/postgresql/" or
+         fd.name startswith "/var/log/" or
+         fd.name startswith "/backups/")
+  output: >
+    Unexpected filesystem modification in AI container
+    (container=%container.name image=%container.image.repository
+    file=%fd.name process=%proc.name operation=%evt.type
+    user=%user.name command=%proc.cmdline)
+  priority: WARNING
+  tags: [filesystem, ai_arbeidsdeskundige, container_security]
+
+- rule: AI Container Resource Exhaustion
+  desc: Monitor for potential resource exhaustion attacks
+  condition: >
+    (spawned_process) and
+    (container.name in (ai_arbeidsdeskundige_containers)) and
+    (proc.name in (dd, yes, fork, bomb, stress))
+  output: >
+    Potential resource exhaustion attack in AI container
+    (container=%container.name process=%proc.name
+    command=%proc.cmdline user=%user.name)
+  priority: CRITICAL
+  tags: [process, ai_arbeidsdeskundige, resource_exhaustion]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ DOCUMENT PROCESSING SECURITY                                          │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- rule: Suspicious Document Processing Activity
+  desc: Detect suspicious document processing patterns
+  condition: >
+    (open_read) and
+    (container.name in (ai_backend_containers)) and
+    (fd.name endswith ".pdf" or fd.name endswith ".docx" or
+     fd.name endswith ".txt" or fd.name endswith ".mp3") and
+    not (fd.name startswith "/app/storage/")
+  output: >
+    Suspicious document access outside storage directory
+    (container=%container.name file=%fd.name
+    process=%proc.name user=%user.name command=%proc.cmdline)
+  priority: WARNING
+  tags: [filesystem, ai_arbeidsdeskundige, document_processing]
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ MONITORING AND ALERTING RULES                                         │
+# └────────────────────────────────────────────────────────────────────────┘
+
+- rule: AI Service Health Check Failure
+  desc: Monitor for health check failures that might indicate compromise
+  condition: >
+    (spawned_process) and
+    (container.name in (ai_arbeidsdeskundige_containers)) and
+    (proc.name = "curl") and
+    (proc.cmdline contains "/health") and
+    (proc.exit_code != 0)
+  output: >
+    AI service health check failed
+    (container=%container.name process=%proc.name
+    command=%proc.cmdline exit_code=%proc.exit_code)
+  priority: WARNING
+  tags: [health_check, ai_arbeidsdeskundige, monitoring]

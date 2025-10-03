@@ -1,0 +1,339 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      working-directory: ./app/backend
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg postgresql-client
+    
+    - name: Set up test database
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        PGPASSWORD: postgres
+      run: |
+        psql -h localhost -U postgres -d test_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
+        psql -h localhost -U postgres -d test_db -f db/init-scripts/01-init-schema.sql
+    
+    - name: Run backend unit tests
+      working-directory: ./app/backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        CELERY_BROKER_URL: redis://localhost:6379/1
+        TESTING: true
+        # Mock API keys for testing
+        ANTHROPIC_API_KEY: test_key_anthropic
+        OPENAI_API_KEY: test_key_openai
+        GOOGLE_API_KEY: test_key_google
+      run: |
+        pytest tests/unit/ -v --cov=app --cov-report=xml --cov-report=term-missing
+    
+    - name: Run backend integration tests
+      working-directory: ./app/backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        CELERY_BROKER_URL: redis://localhost:6379/1
+        TESTING: true
+        ANTHROPIC_API_KEY: test_key_anthropic
+        OPENAI_API_KEY: test_key_openai
+        GOOGLE_API_KEY: test_key_google
+      run: |
+        pytest tests/integration/ -v --cov=app --cov-append --cov-report=xml
+    
+    - name: Run performance tests
+      working-directory: ./app/backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        CELERY_BROKER_URL: redis://localhost:6379/1
+        TESTING: true
+        ANTHROPIC_API_KEY: test_key_anthropic
+        OPENAI_API_KEY: test_key_openai
+        GOOGLE_API_KEY: test_key_google
+      run: |
+        pytest tests/performance/ -v -m "not slow" --cov=app --cov-append --cov-report=xml
+    
+    - name: Upload backend coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./app/backend/coverage.xml
+        flags: backend
+        name: backend-coverage
+        fail_ci_if_error: false
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: ./app/frontend/package-lock.json
+    
+    - name: Install frontend dependencies
+      working-directory: ./app/frontend
+      run: npm ci
+    
+    - name: Run frontend unit tests
+      working-directory: ./app/frontend
+      run: npm run test -- --coverage --reporter=verbose
+    
+    - name: Run frontend type checking
+      working-directory: ./app/frontend
+      run: npm run build
+    
+    - name: Upload frontend coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./app/frontend/coverage/coverage-final.json
+        flags: frontend
+        name: frontend-coverage
+        fail_ci_if_error: false
+
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install code quality tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 isort mypy bandit safety
+    
+    - name: Run Black code formatting check
+      working-directory: ./app/backend
+      run: black --check --diff .
+    
+    - name: Run isort import sorting check
+      working-directory: ./app/backend
+      run: isort --check-only --diff .
+    
+    - name: Run flake8 linting
+      working-directory: ./app/backend
+      run: flake8 --max-line-length=88 --extend-ignore=E203,W503 app/
+    
+    - name: Run mypy type checking
+      working-directory: ./app/backend
+      run: mypy app/ --ignore-missing-imports
+    
+    - name: Run bandit security analysis
+      working-directory: ./app/backend
+      run: bandit -r app/ -ll -i
+    
+    - name: Run safety dependency security check
+      working-directory: ./app/backend
+      run: safety check --file requirements.txt
+    
+    - name: Set up Node.js for frontend linting
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: ./app/frontend/package-lock.json
+    
+    - name: Install frontend dependencies
+      working-directory: ./app/frontend
+      run: npm ci
+    
+    - name: Run ESLint (if configured)
+      working-directory: ./app/frontend
+      run: |
+        if [ -f .eslintrc.js ] || [ -f .eslintrc.json ]; then
+          npx eslint src/ --ext .ts,.vue
+        else
+          echo "ESLint not configured, skipping..."
+        fi
+      continue-on-error: true
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, code-quality]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build backend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./app/backend
+        file: ./app/backend/Dockerfile
+        push: false
+        tags: ai-arbeidsdeskundige-backend:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Build worker Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./app/backend
+        file: ./app/backend/Dockerfile.worker
+        push: false
+        tags: ai-arbeidsdeskundige-worker:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Build frontend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./app/frontend
+        file: ./app/frontend/Dockerfile
+        push: false
+        tags: ai-arbeidsdeskundige-frontend:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Test Docker Compose setup
+      run: |
+        cp docker-compose.example.env .env
+        echo "ANTHROPIC_API_KEY=test_key" >> .env
+        echo "OPENAI_API_KEY=test_key" >> .env
+        echo "GOOGLE_API_KEY=test_key" >> .env
+        docker-compose config
+        echo "Docker Compose configuration is valid"
+
+  performance-benchmarks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      working-directory: ./app/backend
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run performance benchmarks
+      working-directory: ./app/backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        CELERY_BROKER_URL: redis://localhost:6379/1
+        TESTING: true
+        ANTHROPIC_API_KEY: test_key_anthropic
+        OPENAI_API_KEY: test_key_openai
+        GOOGLE_API_KEY: test_key_google
+      run: |
+        pytest tests/performance/ -v -m "slow" --benchmark-json=benchmark.json
+    
+    - name: Store benchmark results
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        tool: 'pytest'
+        output-file-path: ./app/backend/benchmark.json
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+        comment-on-alert: true
+        alert-threshold: '200%'
+        fail-on-alert: true

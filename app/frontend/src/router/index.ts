@@ -35,7 +35,7 @@ const router = createRouter({
     {
       path: '/reports/:id',
       name: 'report-detail',
-      component: () => import('@/views/ReportView.vue'),
+      component: () => import('@/views/CleanReportView.vue'),
       meta: { requiresAuth: true }
     },
     {
@@ -47,8 +47,13 @@ const router = createRouter({
     {
       path: '/profile',
       name: 'profile',
-      component: () => import('@/views/ProfileView.vue'),
-      meta: { requiresAuth: true }
+      component: () => import('@/views/ProfileFixedView.vue'),
+      meta: { requiresAuth: true },
+      // Add a navigation guard specifically for this route
+      beforeEnter: (to, from, next) => {
+        console.log("Navigating to fixed profile view...")
+        next()
+      }
     },
     {
       path: '/test',
@@ -80,4 +85,11 @@ router.beforeEach((to, from, next) => {
   }
 })
 
+// Add some debug logging
+router.beforeEach((to, from, next) => {
+  console.log(`Navigation: ${from.path} -> ${to.path}`)
+  next()
+})
+
+// Export the router instance
 export default router

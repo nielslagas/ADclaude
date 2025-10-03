@@ -1,0 +1,251 @@
+{
+  "titel": "Arbeidsdeskundig rapport",
+  "versie": "1.0",
+  "template": "standaard",
+  "opdrachtgever": {
+    "naam_bedrijf": "TechCorp Nederland B.V.",
+    "contactpersoon": "Mevr. H. de Vries",
+    "functie_contactpersoon": "HR Manager",
+    "adres": "Technopark 123",
+    "postcode": "1234 AB",
+    "woonplaats": "Amsterdam",
+    "telefoonnummer": "020-1234567",
+    "email": "hr@techcorp.nl",
+    "aard_bedrijf": "Software ontwikkeling en IT consultancy",
+    "omvang_bedrijf": "Hoofdkantoor Amsterdam, 250 medewerkers",
+    "aantal_werknemers": "250",
+    "functies_expertises": null,
+    "website": "www.techcorp.nl"
+  },
+  "werknemer": {
+    "naam": "Pieter Janssen",
+    "functie": null,
+    "adres": "Hoofdstraat 45",
+    "postcode": "5678 CD",
+    "woonplaats": "Utrecht",
+    "telefoonnummer": "06-12345678",
+    "email": "p.janssen@email.nl",
+    "geboortedatum": "15-03-1975"
+  },
+  "adviseur": {
+    "naam": "P.R.J. Peters",
+    "functie": "Gecertificeerd Register Arbeidsdeskundige",
+    "adres": null,
+    "postcode": null,
+    "woonplaats": null,
+    "telefoonnummer": "06-81034165",
+    "email": null,
+    "geboortedatum": null
+  },
+  "onderzoek": {
+    "datum_onderzoek": "06-09-2025",
+    "datum_rapportage": "06-09-2025",
+    "locatie_onderzoek": "Amsterdam"
+  },
+  "samenvatting_vraagstelling": [
+    "Kan werknemer het eigen werk nog uitvoeren?",
+    "Is het eigen werk met aanpassingen passend te maken?",
+    "Kan werknemer ander werk bij eigen werkgever uitvoeren?",
+    "Zijn er mogelijkheden voor externe re-integratie?"
+  ],
+  "samenvatting_conclusie": [
+    "Werknemer is momenteel ongeschikt voor eigen werk in volle omvang",
+    "Met aanpassingen is terugkeer naar eigen werk mogelijk"
+  ],
+  "vraagstelling": [
+    {
+      "vraag": "Kan werknemer het eigen werk nog uitvoeren?",
+      "antwoord": null
+    },
+    {
+      "vraag": "Is het eigen werk met aanpassingen passend te maken?",
+      "antwoord": null
+    },
+    {
+      "vraag": "Kan werknemer ander werk bij eigen werkgever uitvoeren?",
+      "antwoord": null
+    },
+    {
+      "vraag": "Zijn er mogelijkheden voor externe re-integratie?",
+      "antwoord": null
+    }
+  ],
+  "ondernomen_activiteiten": [
+    "Dossieronderzoek op 06-09-2025",
+    "Gesprek met werknemer",
+    "Gesprek met werkgever",
+    "Analyse medische informatie",
+    "Opstellen rapportage"
+  ],
+  "voorgeschiedenis": "Werknemer is sinds 2015 in dienst als Senior Software Developer voor 40 uur per week.",
+  "verzuimhistorie": "Uitgevallen op 01-02-2024 met burn-out klachten. Therapeutische werkhervatting gestart met 4x6 uur.",
+  "opleidingen": [
+    {
+      "naam": "HBO Informatica",
+      "richting": "Software Engineering",
+      "diploma_certificaat": "Diploma",
+      "jaar": "1998"
+    }
+  ],
+  "arbeidsverleden_lijst": [
+    {
+      "periode": "1998-2005",
+      "werkgever": "StartUp Solutions",
+      "functie": "Junior Developer"
+    },
+    {
+      "periode": "2005-2015",
+      "werkgever": "WebWorks",
+      "functie": "Medior Developer"
+    },
+    {
+      "periode": "2015-heden",
+      "werkgever": "TechCorp Nederland B.V.",
+      "functie": "Senior Software Developer"
+    }
+  ],
+  "bekwaamheden": {
+    "computervaardigheden": "Uitstekend",
+    "taalvaardigheid": "Nederlands (moedertaal), Engels (vloeiend)",
+    "rijbewijs": "B",
+    "overige": "Certificeringen in Java, Python, Cloud architectuur"
+  },
+  "belastbaarheid": {
+    "datum_beoordeling": "06-09-2025",
+    "beoordelaar": "Dr. A. van den Berg",
+    "fml_rubrieken": [
+      {
+        "rubriek_nummer": "I",
+        "rubriek_naam": "Persoonlijk functioneren",
+        "mate_beperking": "Beperkt",
+        "items": [
+          {
+            "nummer": "2",
+            "beschrijving": "Beperkte concentratie en aandacht verdelen",
+            "specifieke_voorwaarden": null
+          }
+        ],
+        "toelichting": null
+      },
+      {
+        "rubriek_nummer": "VI",
+        "rubriek_naam": "Werktijden",
+        "mate_beperking": "Beperkt",
+        "items": [
+          {
+            "nummer": null,
+            "beschrijving": "Maximaal 6 uur per dag belastbaar",
+            "specifieke_voorwaarden": null
+          }
+        ],
+        "toelichting": null
+      }
+    ],
+    "prognose": "Bij adequate behandeling en geleidelijke opbouw is volledig herstel mogelijk",
+    "energetische_beperking": null
+  },
+  "eigen_functie": {
+    "naam_functie": "Senior Software Developer",
+    "arbeidspatroon": "Dagvenster, flexibele werktijden",
+    "overeenkomst": "Vast",
+    "aantal_uren": "40 uur",
+    "salaris": "€ 5.500 bruto per maand",
+    "functieomschrijving": "Ontwikkelen van complexe software oplossingen, technisch ontwerp, code reviews"
+  },
+  "functiebelasting": [
+    {
+      "taak": "Programmeren en ontwikkelen",
+      "percentage": "60%",
+      "belastende_aspecten": "Hoge concentratie, complexe problemen oplossen"
+    },
+    {
+      "taak": "Overleg en afstemming",
+      "percentage": "25%",
+      "belastende_aspecten": "Communicatie, deadlines"
+    },
+    {
+      "taak": "Documentatie en planning",
+      "percentage": "15%",
+      "belastende_aspecten": "Administratief, overzicht bewaren"
+    }
+  ],
+  "gesprek_werkgever": {
+    "visie_functioneren": "Waardevolle medewerker, momenteel verminderde prestaties",
+    "visie_duurzaamheid": "Bereid tot aanpassingen voor behoud medewerker",
+    "visie_reintegratie": "Voorkeur voor terugkeer in eigen functie"
+  },
+  "gesprek_werknemer": {
+    "visie_beperkingen": "Ervaart vooral vermoeidheid en concentratieproblemen",
+    "visie_werk": "Gemotiveerd voor terugkeer maar bang voor terugval",
+    "visie_reintegratie": "Wil graag eigen werk blijven doen met aanpassingen"
+  },
+  "gesprek_gezamenlijk": null,
+  "geschiktheid_eigen_werk": [
+    {
+      "belastend_aspect": "Complexe programmeerwerk vereist hoge concentratie",
+      "belastbaarheid_werknemer": "Concentratie is beperkt door burn-out",
+      "conclusie": "Tijdelijk niet geschikt voor complexe taken"
+    },
+    {
+      "belastend_aspect": "40 uur per week werken",
+      "belastbaarheid_werknemer": "Maximaal 24 uur belastbaar",
+      "conclusie": "Urenbeperking aanwezig"
+    }
+  ],
+  "conclusie_eigen_werk": "Werknemer is momenteel ongeschikt voor eigen werk in volle omvang door concentratieproblemen en energiebeperking",
+  "aanpassing_eigen_werk": "Tijdelijke aanpassingen: minder complexe taken, 24 uur per week, rustige werkplek, duidelijke prioriteiten",
+  "geschiktheid_ander_werk_intern": "Tijdelijk lichter ontwikkelwerk of documentatie taken zijn mogelijk",
+  "geschiktheid_ander_werk_extern": "Bij onvoldoende herstel: administratieve IT functies met minder complexiteit",
+  "zoekrichting": null,
+  "visie_duurzaamheid": "Met juiste aanpassingen en behandeling is duurzame terugkeer in eigen functie haalbaar binnen 3-6 maanden",
+  "trajectplan": [
+    {
+      "actie": "Werkplekaanpassingen realiseren (rustige werkplek)",
+      "verantwoordelijke": "Werkgever",
+      "termijn": "Binnen 2 weken",
+      "spoor": "1"
+    },
+    {
+      "actie": "Takenpakket aanpassen naar minder complexe projecten",
+      "verantwoordelijke": "Leidinggevende",
+      "termijn": "Direct",
+      "spoor": "1"
+    },
+    {
+      "actie": "Behandeltraject voortzetten",
+      "verantwoordelijke": "Werknemer",
+      "termijn": "Doorlopend",
+      "spoor": "1"
+    },
+    {
+      "actie": "Evaluatie voortgang",
+      "verantwoordelijke": "Bedrijfsarts",
+      "termijn": "Over 6 weken",
+      "spoor": "1"
+    }
+  ],
+  "conclusies": [
+    {
+      "conclusie": "Werknemer is momenteel ongeschikt voor eigen werk",
+      "toelichting": "Door burn-out klachten met concentratie- en energieproblemen"
+    },
+    {
+      "conclusie": "Eigen werk is passend te maken met aanpassingen",
+      "toelichting": "Tijdelijk aangepast takenpakket en werktijden"
+    },
+    {
+      "conclusie": "Prognose voor volledig herstel is gunstig",
+      "toelichting": "Mits adequate behandeling en geleidelijke opbouw"
+    }
+  ],
+  "vervolg": [
+    "Rapport bespreken met werknemer en werkgever",
+    "Implementeren werkplekaanpassingen",
+    "Start aangepast takenpakket",
+    "Monitoring voortgang door bedrijfsarts",
+    "Evaluatie over 6 weken"
+  ],
+  "bijlagen": [],
+  "opmerkingen": null,
+  "disclaimer": null
+}

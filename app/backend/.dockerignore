@@ -1,0 +1,85 @@
+# Development files
+.env
+.env.local
+.env.development
+.env.test
+*.log
+*.pid
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+docs/
+README*
+CHANGELOG*
+LICENSE*
+
+# Git
+.git/
+.gitignore
+
+# Testing
+test_*.py
+tests/
+*_test.py
+pytest.ini
+
+# Storage (should be mounted volumes in production)
+storage/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Node.js (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

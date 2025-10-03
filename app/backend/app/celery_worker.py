@@ -31,7 +31,15 @@ celery.conf.update(
 # Explicitly import and register task modules to avoid circular imports
 # We need to make sure tasks are imported and registered
 import app.tasks.process_document_tasks.document_processor_hybrid
-import app.tasks.generate_report_tasks.report_generator_hybrid
+# Removed old report_generator_hybrid - using Enhanced AD workflow only
+import app.tasks.process_audio_tasks.audio_transcriber
+
+# Import Enhanced AD report tasks
+try:
+    import app.tasks.generate_report_tasks.ad_report_task
+    logger.info("Successfully imported AD report tasks")
+except Exception as e:
+    logger.warning(f"Could not import AD report tasks: {e}")
 
 # Force reload of tasks
 celery.loader.import_default_modules()

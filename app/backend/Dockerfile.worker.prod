@@ -1,0 +1,88 @@
+# Production Dockerfile for AI-Arbeidsdeskundige Celery Worker
+# Optimized for background task processing with security hardening
+# Includes: multi-stage build, non-root user, minimal attack surface
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# STAGE 1: Build Dependencies
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FROM python:3.11-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# STAGE 2: Production Runtime for Worker
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FROM python:3.11-slim as production
+
+# Install runtime dependencies and security updates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    ca-certificates \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Security: Create non-root user for worker
+RUN groupadd --gid 1000 worker && \
+    useradd --uid 1000 --gid worker --shell /bin/bash --create-home worker
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set working directory
+WORKDIR /app
+
+# Security: Set proper ownership
+RUN chown -R worker:worker /app
+
+# Copy application code
+COPY --chown=worker:worker . .
+
+# Create storage directory for worker processes
+RUN mkdir -p /app/storage && chown -R worker:worker /app/storage
+
+# Security: Switch to non-root user
+USER worker
+
+# Production environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    C_FORCE_ROOT=1
+
+# Worker configuration for production
+ENV CELERY_WORKER_CONCURRENCY=4 \
+    CELERY_WORKER_PREFETCH=1 \
+    CELERY_WORKER_MAX_TASKS_PER_CHILD=1000 \
+    CELERY_WORKER_DISABLE_RATE_LIMITS=1
+
+# Health check for worker (checks if Celery can connect to broker)
+HEALTHCHECK --interval=60s --timeout=30s --start-period=60s --retries=3 \
+    CMD celery -A app.celery_worker.celery inspect ping -d celery@$HOSTNAME || exit 1
+
+# Production command with optimized settings
+CMD ["celery", "-A", "app.celery_worker.celery", "worker", \
+     "--loglevel=info", \
+     "--concurrency=4", \
+     "--prefetch-multiplier=1", \
+     "--max-tasks-per-child=1000", \
+     "--optimization=fair"]

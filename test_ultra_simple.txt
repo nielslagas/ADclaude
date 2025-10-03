@@ -1,8 +1,0 @@
-Dit is een test voor de ultra-vereenvoudigde document processor.
-
-Deze versie doet de volgende dingen anders:
-1. We slaan de embeddings volledig over
-2. We gebruiken altijd de meest eenvoudige chunking methode
-3. We focussen op het opslaan van chunks en het markeren van het document als verwerkt
-
-Dit zou moeten leiden tot veel lagere CPU en memory gebruik tijdens de verwerking.

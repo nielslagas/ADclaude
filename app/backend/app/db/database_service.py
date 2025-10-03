@@ -7,15 +7,19 @@ from sqlalchemy import text, Table, Column, String, MetaData
 from sqlalchemy.exc import SQLAlchemyError
 from app.db.postgres import engine
 from app.core.config import settings
+import logging
 
 T = TypeVar('T')
 
-# Custom JSON encoder that can handle UUIDs
+# Custom JSON encoder that can handle UUIDs and datetime objects
 class UUIDEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, uuid.UUID):
             # Convert UUID to string
             return str(obj)
+        elif isinstance(obj, datetime):
+            # Convert datetime to ISO format string
+            return obj.isoformat()
         return json.JSONEncoder.default(self, obj)
 
 class DatabaseService:
@@ -135,7 +139,7 @@ class DatabaseService:
             # Set ID if not provided
             if 'id' not in data:
                 data['id'] = str(uuid.uuid4())
-            
+
             # Table-specific adjustments
             if table_name == "document_chunk":
                 # Document chunk table doesn't have updated_at field
@@ -149,32 +153,77 @@ class DatabaseService:
                     data['created_at'] = now
                 if 'updated_at' not in data:
                     data['updated_at'] = now
-            
+
+            # Process the data for PostgreSQL compatibility
+            processed_data = {}
+            for key, value in data.items():
+                # Special handling for arrays (specializations)
+                if key == 'specializations':
+                    if value is None:
+                        processed_data[key] = []  # Use empty array instead of None
+                    elif isinstance(value, list):
+                        processed_data[key] = value  # Keep the list as is
+                    elif isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+                        # Convert string representation of list to actual list
+                        try:
+                            processed_data[key] = json.loads(value)
+                        except json.JSONDecodeError:
+                            processed_data[key] = []  # Default to empty array if parsing fails
+                    else:
+                        processed_data[key] = []  # Default to empty array for other cases
+                else:
+                    processed_data[key] = value
+
             # Build query parts
-            columns = list(data.keys())
+            columns = list(processed_data.keys())
             placeholders = [f":{col}" for col in columns]
-            
+
             # IMPORTANT: For PostgreSQL reserved words like 'case', we need to use double quotes
             if table_name == "case":
                 table_name = "case_table"
-                
+
             print(f"Creating row in table: {table_name}")
-            
+            print(f"Data to be inserted: {processed_data}")
+
+            # For report table specifically, add extra logging
+            if table_name == "report":
+                print(f"Creating report with title: {processed_data.get('title')}")
+                print(f"Report content type: {type(processed_data.get('content'))}")
+                print(f"Report metadata type: {type(processed_data.get('metadata'))}")
+                print(f"Report template_id: {processed_data.get('template_id')}")
+
+                # layout_type is now supported as a database column
+                if "layout_type" in processed_data:
+                    print(f"Report layout_type: {processed_data.get('layout_type')}")
+
             query = f"""
                 INSERT INTO {table_name} ({', '.join(columns)})
                 VALUES ({', '.join(placeholders)})
                 RETURNING *
             """
-            
+
             with self.engine.connect() as connection:
-                result = connection.execute(text(query), data)
+                result = connection.execute(text(query), processed_data)
                 connection.commit()
-                
+
                 row = result.fetchone()
                 return self._row_to_dict(row) if row else None
-                
-        except SQLAlchemyError as e:
-            print(f"Database error in create_row: {str(e)}")
+
+        except Exception as e:
+            print(f"Error in create_row for table {table_name}: {str(e)}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            traceback.print_exc()
+
+            # For SQL errors, print more details
+            from sqlalchemy.exc import SQLAlchemyError
+            if isinstance(e, SQLAlchemyError):
+                print(f"SQL Error details: {e}")
+
+            # For reports, also show the data we were trying to insert
+            if table_name == "report":
+                print(f"Failed report data: {data}")
+
             return None
     
     def update_row(self, table_name: str, id_value: Any, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -185,36 +234,58 @@ class DatabaseService:
             # Add updated_at timestamp
             if 'updated_at' not in data:
                 data['updated_at'] = datetime.utcnow().isoformat()
-            
+
+            # Process the data for PostgreSQL compatibility
+            processed_data = {}
+            for key, value in data.items():
+                # Special handling for arrays (specializations)
+                if key == 'specializations':
+                    if value is None:
+                        processed_data[key] = []  # Use empty array instead of None
+                    elif isinstance(value, list):
+                        processed_data[key] = value  # Keep the list as is
+                    elif isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+                        # Convert string representation of list to actual list
+                        try:
+                            processed_data[key] = json.loads(value)
+                        except json.JSONDecodeError:
+                            processed_data[key] = []  # Default to empty array if parsing fails
+                    else:
+                        processed_data[key] = []  # Default to empty array for other cases
+                else:
+                    processed_data[key] = value
+
             # Build SET clause
-            set_items = [f"{key} = :{key}" for key in data.keys()]
+            set_items = [f"{key} = :{key}" for key in processed_data.keys()]
             set_clause = ", ".join(set_items)
-            
+
             # Include ID in parameters
-            params = {**data, "id": id_value}
-            
+            params = {**processed_data, "id": id_value}
+
             # IMPORTANT: For PostgreSQL reserved words like 'case', we need to use double quotes
             if table_name == "case":
                 table_name = "case_table"
-                
-            print(f"Updating row in table: {table_name}")
-            
+
+            print(f"Updating row in table: {table_name} with params: {params}")
+
             query = f"""
                 UPDATE {table_name}
                 SET {set_clause}
                 WHERE id = :id
                 RETURNING *
             """
-            
+
             with self.engine.connect() as connection:
                 result = connection.execute(text(query), params)
                 connection.commit()
-                
+
                 row = result.fetchone()
                 return self._row_to_dict(row) if row else None
-                
-        except SQLAlchemyError as e:
-            print(f"Database error in update_row: {str(e)}")
+
+        except Exception as e:
+            print(f"Error in update_row: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def delete_row(self, table_name: str, id_value: Any) -> bool:
@@ -584,37 +655,74 @@ class DatabaseService:
         rows = self.get_rows("report", {"id": report_id, "user_id": user_id})
         return rows[0] if rows else None
     
-    def create_report(self, case_id: str, user_id: str, title: str, 
-                     template_id: str) -> Optional[Dict[str, Any]]:
+    def create_report(self, case_id: str, user_id: str, title: str,
+                     template_id: str, layout_type: str = "standaard", 
+                     generation_method: str = "legacy", use_structured_output: bool = False) -> Optional[Dict[str, Any]]:
         """
-        Create a new report
+        Create a new report with structured data support
         """
+        print(f"create_report called with: case_id={case_id}, user_id={user_id}, title={title}, template_id={template_id}, layout_type={layout_type}")
+        print(f"generation_method={generation_method}, use_structured_output={use_structured_output}")
+
+        # Create the base data with new structured report fields
         data = {
             "case_id": case_id,
             "user_id": user_id,
             "title": title,
             "template_id": template_id,
             "status": "processing",
-            "content": "{}"  # Empty JSON content
+            "content": "{}",  # Empty JSON content
+            "layout_type": layout_type,  # Now a database column
+            "generation_method": "structured" if use_structured_output else generation_method,
+            "format_version": "1.0",
+            "has_structured_data": use_structured_output,
+            "fml_rubrieken_count": 0
         }
+
+        # Enhanced metadata with generation info
+        metadata = {
+            "template_type": layout_type,
+            "generation_method": data["generation_method"],
+            "requested_structured_output": use_structured_output,
+            "created_at": datetime.utcnow().isoformat()
+        }
+
+        try:
+            # Convert metadata to JSON string
+            metadata_json = json.dumps(metadata)
+            data["metadata"] = metadata_json
+            print(f"Metadata JSON created successfully: {metadata_json}")
+        except Exception as e:
+            print(f"Error creating metadata JSON: {str(e)}")
+            # Use an empty object as fallback
+            data["metadata"] = "{}"
         
         # Make sure content and metadata are JSON strings
-        if "content" in data and isinstance(data["content"], dict):
-            # Use the custom encoder
-            data["content"] = json.dumps(data["content"], cls=UUIDEncoder)
-            
-        if "metadata" in data and isinstance(data["metadata"], dict):
-            # Use the custom encoder
-            data["metadata"] = json.dumps(data["metadata"], cls=UUIDEncoder)
-        elif "report_metadata" in data and isinstance(data["report_metadata"], dict):
-            # Handle report_metadata -> metadata conversion
-            data["metadata"] = json.dumps(data["report_metadata"], cls=UUIDEncoder)
-            
-        return self.create_row("report", data)
+        try:
+            if "content" in data and isinstance(data["content"], dict):
+                # Use the custom encoder
+                data["content"] = json.dumps(data["content"], cls=UUIDEncoder)
+
+            if "metadata" in data and isinstance(data["metadata"], dict):
+                # Use the custom encoder
+                data["metadata"] = json.dumps(data["metadata"], cls=UUIDEncoder)
+            elif "report_metadata" in data and isinstance(data["report_metadata"], dict):
+                # Handle report_metadata -> metadata conversion
+                data["metadata"] = json.dumps(data["report_metadata"], cls=UUIDEncoder)
+
+            # Create the report in the database
+            print(f"Calling create_row with data: {data}")
+            return self.create_row("report", data)
+        except Exception as e:
+            import traceback
+            print(f"Error in create_report: {str(e)}")
+            print(f"Error type: {type(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return None
     
     def update_report(self, report_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Update a report with built-in safety filter for 'dangerous_content' 
+        Update a report with built-in safety filter for 'dangerous_content' and structured report support
         """
         # Filter out dangerous_content mentions before processing
         if "content" in data and isinstance(data["content"], dict):
@@ -649,6 +757,21 @@ class DatabaseService:
             elif key == "error" and isinstance(value, str) and "dangerous_content" in value:
                 # Filter out error messages containing dangerous_content
                 processed_data[key] = "Rapportgeneratie kon niet worden voltooid"
+            elif key in ["export_formats", "quality_metrics"] and isinstance(value, dict):
+                # Handle JSON fields for structured reports
+                processed_data[key] = json.dumps(value, cls=UUIDEncoder)
+            elif key == "fml_rubrieken_count" and isinstance(value, int):
+                # Direct integer value for FML rubrieken count
+                processed_data[key] = value
+            elif key in ["generation_method", "format_version", "layout_type"]:
+                # Direct string values for structured report fields
+                processed_data[key] = value
+            elif key == "has_structured_data" and isinstance(value, bool):
+                # Direct boolean value for structured data indicator
+                processed_data[key] = value
+            elif key == "generation_time_ms" and isinstance(value, int):
+                # Direct integer value for performance tracking
+                processed_data[key] = value
             else:
                 processed_data[key] = value
                 
@@ -660,8 +783,70 @@ class DatabaseService:
         """
         Get a user profile by user ID
         """
+        # ALWAYS check for mock user ID first, outside the try block
+        if user_id == "example_user_id":
+            print(f"Using mock profile for development user_id: {user_id}")
+            # Return a mock profile for development
+            return {
+                "profile_id": "mock_profile_id",
+                "user_id": user_id,
+                "first_name": "Test",
+                "last_name": "Arbeidsdeskundige",
+                "display_name": "Test Arbeidsdeskundige",
+                "job_title": "Arbeidsdeskundige",
+                "company_name": "Demo Bedrijf BV",
+                "company_description": "Dit is een demonstratiebedrijf voor ontwikkelingsdoeleinden.",
+                "company_address": "Voorbeeldstraat 123",
+                "company_postal_code": "1234 AB",
+                "company_city": "Amsterdam",
+                "company_country": "Nederland",
+                "company_phone": "020-1234567",
+                "company_email": "info@demobedrijf.nl",
+                "company_website": "www.demobedrijf.nl",
+                "certification": "Gecertificeerd Arbeidsdeskundige",
+                "registration_number": "AD12345",
+                "specializations": ["Letselschade", "Re-integratie", "Arbeidsongeschiktheid"],
+                "bio": "Dit is een demoprofiel voor ontwikkelingsdoeleinden.",
+                "logo_path": None,  # No logo for mock profile
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
+            }
+
+        # Check if user_id is a valid UUID before proceeding with database operations
         try:
-            # Try using the pg function if it exists
+            # Validate UUID format
+            try:
+                uuid_obj = uuid.UUID(user_id)
+                print(f"Valid UUID format: {user_id}")
+            except ValueError:
+                print(f"Invalid UUID format: {user_id}, using fallback mock profile")
+                # Return a mock profile for invalid UUIDs
+                return {
+                    "profile_id": "fallback_profile_id",
+                    "user_id": user_id,
+                    "first_name": "Fallback",
+                    "last_name": "User",
+                    "display_name": "Fallback User",
+                    "job_title": "Gebruiker",
+                    "company_name": "Fallback Bedrijf",
+                    "company_description": "Dit is een fallback profiel voor ongeldige user IDs.",
+                    "company_address": "Teststraat 123",
+                    "company_postal_code": "1234 AB",
+                    "company_city": "Amsterdam",
+                    "company_country": "Nederland",
+                    "company_phone": "020-1234567",
+                    "company_email": "info@fallback.nl",
+                    "company_website": "www.fallback.nl",
+                    "certification": "N/A",
+                    "registration_number": "N/A",
+                    "specializations": [],
+                    "bio": "Dit is een fallback profiel.",
+                    "logo_path": None,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+
+            # For valid UUIDs, try using the pg function if it exists
             query = """
                 SELECT * FROM get_user_profile(:user_id);
             """
@@ -717,7 +902,24 @@ class DatabaseService:
 
         except SQLAlchemyError as e:
             print(f"Database error in get_user_profile: {str(e)}")
-            return None
+            print("Returning fallback profile for database error")
+            # Return a fallback profile in case of database error
+            return {
+                "profile_id": "error_profile_id",
+                "user_id": user_id,
+                "first_name": "Error",
+                "last_name": "Handler",
+                "display_name": "Error Handler",
+                "job_title": "Systeem Gebruiker",
+                "company_name": "Systeem",
+                "company_description": "Dit is een systeem-gegenereerd profiel vanwege een databasefout.",
+                "certification": "N/A",
+                "registration_number": "N/A",
+                "specializations": [],
+                "logo_path": None,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
+            }
 
     def create_user_profile(self, user_id: str, profile_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -781,19 +983,39 @@ class DatabaseService:
         Update an existing user profile
         """
         try:
+            # Clean the data to only include valid fields for the user_profile table
+            allowed_fields = [
+                'first_name', 'last_name', 'display_name', 'job_title',
+                'company_name', 'company_description', 'company_address',
+                'company_postal_code', 'company_city', 'company_country',
+                'company_phone', 'company_email', 'company_website',
+                'certification', 'registration_number', 'specializations', 'bio'
+            ]
+
+            # Create a clean copy with only the allowed fields
+            clean_data = {}
+            for field in allowed_fields:
+                if field in profile_data:
+                    # Special handling for specializations
+                    if field == 'specializations' and profile_data[field] is None:
+                        # Convert None to empty array for specializations
+                        clean_data[field] = []
+                    else:
+                        clean_data[field] = profile_data[field]
+
             # Add updated_at timestamp
-            if 'updated_at' not in profile_data:
-                profile_data['updated_at'] = datetime.utcnow().isoformat()
+            clean_data['updated_at'] = datetime.utcnow().isoformat()
 
-            # Handle specializations array
-            if 'specializations' in profile_data and isinstance(profile_data['specializations'], list):
-                # Convert array for PostgreSQL
-                profile_data['specializations'] = f"ARRAY{profile_data['specializations']}"
+            # Debug the cleaned data being sent
+            print(f"Updating user profile {profile_id} with clean data: {clean_data}")
 
-            return self.update_row("user_profile", profile_id, profile_data)
+            return self.update_row("user_profile", profile_id, clean_data)
 
-        except SQLAlchemyError as e:
-            print(f"Database error in update_user_profile: {str(e)}")
+        except Exception as e:
+            print(f"Error in update_user_profile: {str(e)}")
+            # Print the traceback for more detailed error information
+            import traceback
+            traceback.print_exc()
             return None
 
     def save_profile_logo(self, profile_id: str, file_name: str, file_content: bytes,
@@ -884,6 +1106,213 @@ class DatabaseService:
         except SQLAlchemyError as e:
             print(f"Database error in delete_profile_logo: {str(e)}")
             return False
+    
+    async def update_document_metadata(self, document_id: str, metadata: Dict[str, Any]) -> bool:
+        """
+        Update document with enhanced classification metadata
+        """
+        try:
+            # Serialize metadata to JSON
+            metadata_json = json.dumps(metadata, cls=UUIDEncoder)
+            
+            query = """
+                UPDATE documents 
+                SET 
+                    metadata = COALESCE(metadata, '{}'::jsonb) || :metadata::jsonb,
+                    updated_at = :updated_at
+                WHERE id = :document_id
+            """
+            
+            with self.engine.connect() as connection:
+                result = connection.execute(text(query), {
+                    "document_id": document_id,
+                    "metadata": metadata_json,
+                    "updated_at": datetime.utcnow()
+                })
+                connection.commit()
+                
+                return result.rowcount > 0
+                
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in update_document_metadata: {str(e)}")
+            return False
+    
+    def get_document_by_classification(self, doc_type: str, 
+                                     confidence_threshold: float = 0.5) -> List[Dict[str, Any]]:
+        """
+        Get documents by classification type and confidence threshold
+        """
+        try:
+            query = """
+                SELECT * FROM documents 
+                WHERE 
+                    metadata->>'document_type' = :doc_type
+                    AND CAST(metadata->>'classification_confidence' AS FLOAT) >= :threshold
+                ORDER BY created_at DESC
+            """
+            
+            with self.engine.connect() as connection:
+                result = connection.execute(text(query), {
+                    "doc_type": doc_type,
+                    "threshold": confidence_threshold
+                })
+                
+                return [self._row_to_dict(row) for row in result.fetchall()]
+                
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in get_document_by_classification: {str(e)}")
+            return []
+    
+    def get_processing_statistics(self) -> Dict[str, Any]:
+        """
+        Get document processing statistics grouped by type and strategy
+        """
+        try:
+            query = """
+                SELECT 
+                    metadata->>'document_type' as document_type,
+                    metadata->>'processing_strategy' as processing_strategy,
+                    COUNT(*) as count,
+                    AVG(CAST(metadata->>'classification_confidence' AS FLOAT)) as avg_confidence,
+                    MIN(created_at) as first_processed,
+                    MAX(created_at) as last_processed
+                FROM documents 
+                WHERE metadata IS NOT NULL 
+                    AND metadata->>'document_type' IS NOT NULL
+                GROUP BY 
+                    metadata->>'document_type',
+                    metadata->>'processing_strategy'
+                ORDER BY count DESC
+            """
+            
+            with self.engine.connect() as connection:
+                result = connection.execute(text(query))
+                
+                stats = []
+                for row in result.fetchall():
+                    stats.append(self._row_to_dict(row))
+                
+                return {
+                    "processing_stats": stats,
+                    "total_classified_documents": sum(stat["count"] for stat in stats),
+                    "generated_at": datetime.utcnow().isoformat()
+                }
+                
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in get_processing_statistics: {str(e)}")
+            return {"processing_stats": [], "total_classified_documents": 0}
+    
+    def create_document_chunk_v2(self, document_id: str, chunk_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Create a document chunk with enhanced metadata
+        """
+        try:
+            chunk_id = str(uuid.uuid4())
+            
+            # Serialize chunk metadata
+            metadata_json = json.dumps(chunk_data.get("metadata", {}), cls=UUIDEncoder)
+            
+            query = """
+                INSERT INTO document_chunks 
+                (id, document_id, content, chunk_index, metadata, created_at)
+                VALUES (:id, :document_id, :content, :chunk_index, :metadata, :created_at)
+                RETURNING id
+            """
+            
+            with self.engine.connect() as connection:
+                result = connection.execute(text(query), {
+                    "id": chunk_id,
+                    "document_id": document_id,
+                    "content": chunk_data.get("content", ""),
+                    "chunk_index": chunk_data.get("chunk_index", 0),
+                    "metadata": metadata_json,
+                    "created_at": datetime.utcnow()
+                })
+                connection.commit()
+                
+                row = result.fetchone()
+                return str(row[0]) if row else None
+                
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in create_document_chunk: {str(e)}")
+            return None
+    
+    def get_document_chunks_by_type(self, document_id: str, 
+                                  chunk_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get document chunks, optionally filtered by chunk type
+        """
+        try:
+            base_query = """
+                SELECT * FROM document_chunks 
+                WHERE document_id = :document_id
+            """
+            
+            params = {"document_id": document_id}
+            
+            if chunk_type:
+                base_query += " AND metadata->>'chunk_type' = :chunk_type"
+                params["chunk_type"] = chunk_type
+            
+            base_query += " ORDER BY chunk_index ASC"
+            
+            with self.engine.connect() as connection:
+                result = connection.execute(text(base_query), params)
+                
+                return [self._row_to_dict(row) for row in result.fetchall()]
+                
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in get_document_chunks_by_type: {str(e)}")
+            return []
+    
+    def search_documents_by_metadata(self, search_criteria: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Search documents using metadata fields
+        """
+        try:
+            conditions = []
+            params = {}
+            
+            for key, value in search_criteria.items():
+                if key == "document_types" and isinstance(value, list):
+                    # Search for multiple document types
+                    type_conditions = []
+                    for i, doc_type in enumerate(value):
+                        type_param = f"doc_type_{i}"
+                        type_conditions.append(f"metadata->>'document_type' = :{type_param}")
+                        params[type_param] = doc_type
+                    conditions.append(f"({' OR '.join(type_conditions)})")
+                
+                elif key == "min_confidence":
+                    conditions.append("CAST(metadata->>'classification_confidence' AS FLOAT) >= :min_confidence")
+                    params["min_confidence"] = value
+                
+                elif key == "processing_strategy":
+                    conditions.append("metadata->>'processing_strategy' = :processing_strategy")
+                    params["processing_strategy"] = value
+                
+                elif key == "has_metadata":
+                    if value:
+                        conditions.append("metadata IS NOT NULL")
+                    else:
+                        conditions.append("metadata IS NULL")
+            
+            where_clause = " AND ".join(conditions) if conditions else "1=1"
+            
+            query = f"""
+                SELECT * FROM documents 
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+            """
+            
+            with self.engine.connect() as connection:
+                result = connection.execute(text(query), params)
+                
+                return [self._row_to_dict(row) for row in result.fetchall()]
+                
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in search_documents_by_metadata: {str(e)}")
+            return []
 
 # Create a singleton instance
 db_service = DatabaseService()

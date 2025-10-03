@@ -1,0 +1,32 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Backup Service Crontab for AI-Arbeidsdeskundige
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 
+# Automated backup schedule:
+# - Daily PostgreSQL and Redis backups at 2:00 AM
+# - Storage backup at 2:30 AM
+# - Health checks every 5 minutes
+# - Weekly full storage backup on Sundays
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# PostgreSQL backup - Daily at 2:00 AM
+0 2 * * * /usr/local/bin/postgres-backup.sh >> /backups/logs/cron.log 2>&1
+
+# Redis backup - Daily at 2:15 AM
+15 2 * * * /usr/local/bin/redis-backup.sh >> /backups/logs/cron.log 2>&1
+
+# Storage backup - Daily at 2:30 AM (incremental)
+30 2 * * * /usr/local/bin/storage-backup.sh >> /backups/logs/cron.log 2>&1
+
+# Full storage backup - Weekly on Sunday at 3:00 AM
+0 3 * * 0 FILE_BACKUP_INCREMENTAL=false /usr/local/bin/storage-backup.sh >> /backups/logs/cron.log 2>&1
+
+# Health check - Every 5 minutes
+*/5 * * * * /usr/local/bin/backup-health-check.sh >> /backups/logs/cron.log 2>&1
+
+# Log rotation - Daily at 23:55
+55 23 * * * find /backups/logs -name "*.log" -size +100M -exec gzip {} \; >> /backups/logs/cron.log 2>&1
+
+# Clean up old compressed logs - Weekly
+0 4 * * 1 find /backups/logs -name "*.log.gz" -mtime +30 -delete >> /backups/logs/cron.log 2>&1

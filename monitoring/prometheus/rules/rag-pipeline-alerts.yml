@@ -1,0 +1,236 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# AI-Arbeidsdeskundige RAG Pipeline Alerting Rules
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+groups:
+  - name: rag-pipeline-performance
+    interval: 30s
+    rules:
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ PROCESSING TIME ALERTS                                                 │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGProcessingTimeTooHigh
+        expr: ai_arbeidsdeskundige_processing_time > 15
+        for: 2m
+        labels:
+          severity: warning
+          component: "{{ $labels.component }}"
+          service: rag-pipeline
+        annotations:
+          summary: "RAG component processing time is too high"
+          description: "Component {{ $labels.component }} has processing time of {{ $value }}s, exceeding 15s threshold for 2 minutes"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/processing-time"
+
+      - alert: RAGProcessingTimeCritical
+        expr: ai_arbeidsdeskundige_processing_time > 30
+        for: 1m
+        labels:
+          severity: critical
+          component: "{{ $labels.component }}"
+          service: rag-pipeline
+        annotations:
+          summary: "RAG component processing time is critically high"
+          description: "Component {{ $labels.component }} has processing time of {{ $value }}s, exceeding 30s critical threshold"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/processing-time-critical"
+
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ ERROR RATE ALERTS                                                      │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGErrorRateHigh
+        expr: rate(ai_arbeidsdeskundige_error_rate[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          component: "{{ $labels.component }}"
+          service: rag-pipeline
+        annotations:
+          summary: "RAG component error rate is high"
+          description: "Component {{ $labels.component }} has error rate of {{ $value | humanizePercentage }}, exceeding 5% threshold"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/error-rate"
+
+      - alert: RAGErrorRateCritical
+        expr: rate(ai_arbeidsdeskundige_error_rate[5m]) > 0.15
+        for: 1m
+        labels:
+          severity: critical
+          component: "{{ $labels.component }}"
+          service: rag-pipeline
+        annotations:
+          summary: "RAG component error rate is critically high"
+          description: "Component {{ $labels.component }} has error rate of {{ $value | humanizePercentage }}, exceeding 15% critical threshold"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/error-rate-critical"
+
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ QUALITY SCORE ALERTS                                                   │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGQualityScoreLow
+        expr: ai_arbeidsdeskundige_quality_score < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          component: "{{ $labels.component }}"
+          service: rag-pipeline
+        annotations:
+          summary: "RAG component quality score is below threshold"
+          description: "Component {{ $labels.component }} has quality score of {{ $value | humanizePercentage }}, below 70% threshold"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/quality-score"
+
+      - alert: RAGQualityScoreCritical
+        expr: ai_arbeidsdeskundige_quality_score < 0.5
+        for: 2m
+        labels:
+          severity: critical
+          component: "{{ $labels.component }}"
+          service: rag-pipeline
+        annotations:
+          summary: "RAG component quality score is critically low"
+          description: "Component {{ $labels.component }} has quality score of {{ $value | humanizePercentage }}, below 50% critical threshold"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/quality-score-critical"
+
+  - name: rag-pipeline-system
+    interval: 60s
+    rules:
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ SYSTEM HEALTH ALERTS                                                   │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGSystemHealthLow
+        expr: ai_arbeidsdeskundige_system_health < 0.6
+        for: 3m
+        labels:
+          severity: warning
+          service: rag-pipeline
+        annotations:
+          summary: "RAG system health score is low"
+          description: "Overall system health score is {{ $value | humanizePercentage }}, below 60% threshold"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/system-health"
+
+      - alert: RAGSystemHealthCritical
+        expr: ai_arbeidsdeskundige_system_health < 0.4
+        for: 1m
+        labels:
+          severity: critical
+          service: rag-pipeline
+        annotations:
+          summary: "RAG system health score is critically low"
+          description: "Overall system health score is {{ $value | humanizePercentage }}, below 40% critical threshold - immediate attention required"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/system-health-critical"
+
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ MEMORY USAGE ALERTS                                                    │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGMemoryUsageHigh
+        expr: ai_arbeidsdeskundige_memory_usage > 200
+        for: 5m
+        labels:
+          severity: warning
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline memory usage is high"
+          description: "Memory usage is {{ $value }}MB, exceeding 200MB threshold for 5 minutes"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/memory-usage"
+
+      - alert: RAGMemoryUsageCritical
+        expr: ai_arbeidsdeskundige_memory_usage > 500
+        for: 2m
+        labels:
+          severity: critical
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline memory usage is critically high"
+          description: "Memory usage is {{ $value }}MB, exceeding 500MB critical threshold - possible memory leak"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/memory-usage-critical"
+
+  - name: rag-pipeline-business
+    interval: 300s
+    rules:
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ TOKEN USAGE & COST ALERTS                                              │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGTokenUsageHigh
+        expr: sum(increase(ai_arbeidsdeskundige_token_usage[1h])) > 50000
+        for: 0m
+        labels:
+          severity: warning
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline token usage is high"
+          description: "Token usage in the last hour is {{ $value }}, exceeding 50K threshold"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/token-usage"
+
+      - alert: RAGTokenUsageCritical
+        expr: sum(increase(ai_arbeidsdeskundige_token_usage[1h])) > 100000
+        for: 0m
+        labels:
+          severity: critical
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline token usage is critically high"
+          description: "Token usage in the last hour is {{ $value }}, exceeding 100K critical threshold - check for runaway processes"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/token-usage-critical"
+
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ THROUGHPUT & CAPACITY ALERTS                                           │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGThroughputLow
+        expr: ai_arbeidsdeskundige_throughput < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline throughput is low"
+          description: "Throughput is {{ $value }} requests/minute, below 0.5 threshold for 10 minutes"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/throughput-low"
+
+      - alert: RAGActiveRequestsHigh
+        expr: ai_arbeidsdeskundige_active_requests > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline has too many active requests"
+          description: "{{ $value }} active requests, exceeding capacity of 10 concurrent requests"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/active-requests"
+
+  - name: rag-pipeline-availability
+    interval: 60s
+    rules:
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ SERVICE AVAILABILITY ALERTS                                            │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGPipelineDown
+        expr: up{job="backend-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline API is down"
+          description: "RAG pipeline backend API has been down for more than 1 minute"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/service-down"
+
+      - alert: RAGHealthCheckFailing
+        expr: up{job="rag-health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline health check is failing"
+          description: "RAG pipeline health check endpoint has been failing for more than 2 minutes"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/health-check-failing"
+
+      # ┌────────────────────────────────────────────────────────────────────────┐
+      # │ CACHE EFFICIENCY ALERTS                                                │
+      # └────────────────────────────────────────────────────────────────────────┘
+      - alert: RAGCacheEfficiencyLow
+        expr: ai_arbeidsdeskundige_cache_hit_rate < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          service: rag-pipeline
+        annotations:
+          summary: "RAG pipeline cache efficiency is low"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}, below 50% threshold for 15 minutes"
+          runbook_url: "https://docs.ai-arbeidsdeskundige.nl/runbooks/cache-efficiency"

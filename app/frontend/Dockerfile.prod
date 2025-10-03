@@ -1,0 +1,70 @@
+# Production Dockerfile for AI-Arbeidsdeskundige Frontend
+# Multi-stage build: Build stage + Nginx production server
+# Optimized for performance, security, and minimal image size
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# STAGE 1: Build Stage
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FROM node:18-alpine as builder
+
+# Install build dependencies
+RUN apk add --no-cache git python3 make g++
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY package*.json ./
+
+# Install dependencies with clean npm cache
+RUN npm ci --only=production --silent && \
+    npm cache clean --force
+
+# Copy source code
+COPY . .
+
+# Build the application for production
+RUN npm run build
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# STAGE 2: Production Runtime with Nginx
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FROM nginx:1.25-alpine as production
+
+# Security: Install security updates
+RUN apk upgrade --no-cache
+
+# Security: Create non-root user for nginx
+RUN addgroup -g 1000 appuser && \
+    adduser -D -s /bin/sh -u 1000 -G appuser appuser
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy custom nginx configuration
+COPY nginx.prod.conf /etc/nginx/nginx.conf
+
+# Security: Set proper permissions
+RUN chown -R appuser:appuser /usr/share/nginx/html && \
+    chown -R appuser:appuser /var/cache/nginx && \
+    chown -R appuser:appuser /var/log/nginx && \
+    chown -R appuser:appuser /etc/nginx/conf.d
+
+# Create pid file directory with proper permissions
+RUN mkdir -p /var/run/nginx && \
+    chown -R appuser:appuser /var/run/nginx
+
+# Security: Switch to non-root user
+USER appuser
+
+# Health check for frontend
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+
+# Expose port 80 (internal container port)
+EXPOSE 80
+
+# Production command
+CMD ["nginx", "-g", "daemon off;"]

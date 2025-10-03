@@ -1,0 +1,71 @@
+MEDISCH RAPPORT
+
+Patiënt: J. van der Berg
+BSN: 123456789
+Geboortedatum: 15-03-1978
+Datum onderzoek: 12-09-2024
+
+Behandelend arts: Dr. M. Peters, Arbeidsgeneeskundige
+Ziekenhuis: Medisch Centrum Amsterdam
+
+ANAMNESE:
+Patiënt is een 46-jarige administratief medewerker die werkzaam is bij een verzekeringskantoor. Sinds mei 2024 klachten van aanhoudende lage rugpijn na het tillen van een zware doos op kantoor. 
+
+HUIDIGE KLACHTEN:
+- Chronische lumbale rugpijn, VAS-score 6/10
+- Uitstralende pijn naar linker been tot knie
+- Stijfheid 's ochtends, duurt ongeveer 30 minuten
+- Moeite met langdurig zitten (>30 minuten)
+- Verminderde spierkracht linker been
+- Slaapproblemen door pijn
+
+OBJECTIEF ONDERZOEK:
+- Beperkte flexie lumbale wervelkolom (40°)
+- Positieve straight leg raising test links bij 45°
+- Verminderde reflexen L5 links
+- Kracht: links 4/5, rechts 5/5
+- Sensibiliteit: verminderd L5 dermatoom links
+
+AANVULLEND ONDERZOEK:
+MRI lumbale wervelkolom (08-09-2024):
+- Hernia nuclei pulposi L4-L5 links met zenuwwortelcompressie
+- Lichte degeneratieve veranderingen L5-S1
+- Geen tekenen van instabiliteit
+
+DIAGNOSE:
+1. Hernia nuclei pulposi L4-L5 links met radiculopathie
+2. Chronische lumbale pijn
+
+BEHANDELING:
+- Fysiotherapie 2x per week
+- Pijnmedicatie: Paracetamol 1000mg 3x daags, Diclofenac 50mg 2x daags
+- Ergonomische aanpassingen werkplek aanbevolen
+- Geleidelijke opbouw activiteiten
+
+FUNCTIONELE CAPACITEITEN:
+- Zitten: maximaal 30 minuten aaneengesloten
+- Staan: maximaal 45 minuten aaneengesloten
+- Lopen: maximaal 1 km zonder pauze
+- Tillen: maximaal 5 kg
+- Bukken/hurken: beperkt mogelijk
+- Rijden: maximaal 45 minuten
+
+WERKHERVATTING:
+Geleidelijke werkhervatting mogelijk vanaf oktober 2024:
+- Week 1-2: 2 uur per dag, voornamelijk zittend werk
+- Week 3-4: 4 uur per dag met pauzes elke 30 minuten
+- Week 5-8: opbouw naar 6 uur per dag
+- Volledig herstel: naar verwachting binnen 3-6 maanden
+
+BEPERKINGEN:
+- Geen tillen >5 kg
+- Ergonomische werkplek vereist
+- Regelmatige pauzes nodig
+- Geen langdurig zitten zonder onderbreking
+
+PROGNOSE:
+Redelijk tot goed bij adequaat behandeling en werkplekaanpassingen.
+
+Dr. M. Peters
+Arbeidsgeneeskundige
+Registratienummer: 03.02.1234.5

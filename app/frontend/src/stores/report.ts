@@ -13,60 +13,82 @@ export const useReportStore = defineStore('report', () => {
 
   // Actions
   const fetchReportTemplates = async () => {
+    // Alleen Enhanced AD template beschikbaar
+    const enhancedTemplates = {
+      'enhanced_ad_rapport': {
+        id: 'enhanced_ad_rapport',
+        name: 'Enhanced AD Rapport',
+        description: 'Professioneel arbeidsdeskundig rapport met complete structuur',
+        sections: {}
+      }
+    }
+    
+    templates.value = enhancedTemplates
+    return enhancedTemplates
+  }
+
+  const createReport = async (reportData: ReportCreate) => {
+    // Redirect oude createReport naar Enhanced AD
+    console.warn('createReport is deprecated, using createEnhancedADReport instead')
+    
+    // Zet template altijd naar enhanced_ad_rapport
+    const enhancedData = {
+      ...reportData,
+      template_id: 'enhanced_ad_rapport',
+      layout_type: reportData.layout_type || 'standaard'
+    }
+    
+    return createEnhancedADReport(enhancedData)
+  }
+
+  // Enhanced AD Report Methods
+  const fetchEnhancedADTemplates = async () => {
     loading.value = true
     error.value = null
     
     try {
-      console.log('Fetching report templates...')
-      const response = await apiClient.get('/reports/templates')
-      console.log('Report templates response:', response.data)
-      
-      // If response is empty or not an object, set as empty object
-      if (!response.data || typeof response.data !== 'object') {
-        console.warn('Empty or invalid templates response, using empty object')
-        templates.value = {}
-        return {}
-      }
-      
-      templates.value = response.data
+      console.log('Fetching enhanced AD templates...')
+      const response = await apiClient.get('/reports/ad-templates')
+      console.log('Enhanced AD templates response:', response.data)
       return response.data
     } catch (err) {
-      console.error('Error fetching report templates:', err)
-      
-      // Log more details about the error
-      if (err.response) {
-        console.error('Error response:', {
-          status: err.response.status,
-          data: err.response.data,
-          headers: err.response.headers
-        })
-      }
-      
-      error.value = err.message || 'Failed to fetch report templates'
-      
-      // Return empty object instead of throwing error
-      templates.value = {}
-      return {}
+      console.error('Error fetching enhanced AD templates:', err)
+      error.value = err.message || 'Failed to fetch enhanced AD templates'
+      throw err
     } finally {
       loading.value = false
     }
   }
 
-  const createReport = async (reportData: ReportCreate) => {
+  const createEnhancedADReport = async (reportData: ReportCreate) => {
     loading.value = true
     error.value = null
     
     try {
-      const response = await apiClient.post('/reports', reportData)
-      const newReport = response.data
-      reports.value.unshift(newReport)
-      return newReport
+      console.log('Creating enhanced AD report...', reportData)
+      const response = await apiClient.post('/reports/enhanced-ad', reportData)
+      const result = response.data
+      
+      // The report will be created in processing status, no need to add to list yet
+      // It will be picked up by the regular report fetching
+      
+      return result
     } catch (err) {
-      console.error('Error creating report:', err)
-      error.value = err.message || 'Failed to create report'
+      console.error('Error creating enhanced AD report:', err)
+      error.value = err.message || 'Failed to create enhanced AD report'
       throw err
     } finally {
       loading.value = false
+    }
+  }
+
+  const getReportQualityMetrics = async (reportId: string) => {
+    try {
+      const response = await apiClient.get(`/reports/${reportId}/quality-metrics`)
+      return response.data
+    } catch (err) {
+      console.error('Error fetching quality metrics:', err)
+      throw err
     }
   }
 
@@ -155,17 +177,17 @@ export const useReportStore = defineStore('report', () => {
   }
 
   // Download report as DOCX
-  const downloadReportAsDocx = async (id: string) => {
+  const downloadReportAsDocx = async (id: string, layout: string = 'standaard') => {
     loading.value = true
     error.value = null
-    
+
     try {
       // We need to use a different approach for file downloads
       // Create a temporary anchor element to trigger the download
-      const downloadUrl = `${apiClient.defaults.baseURL}/reports/${id}/export/docx`
+      const downloadUrl = `${apiClient.defaults.baseURL}/reports/${id}/export/docx?layout=${layout}`
       
       // Get the auth token to include in the request
-      let token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJleGFtcGxlX3VzZXJfaWQiLCJuYW1lIjoiVGVzdCBVc2VyIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+      let token = 'eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0.eyJzdWIiOiAiOTI3MzQyYWQtZDVhMC00Zjg4LTliYzMtODBmNzcwMjA3M2UwIiwgIm5hbWUiOiAiTmllbHMgTGFnYXMiLCAiaWF0IjogMTUxNjIzOTAyMn0.'
       
       try {
         const { data } = await apiClient.get('/auth/me')
@@ -260,6 +282,78 @@ export const useReportStore = defineStore('report', () => {
     }
   }
 
+  const generateStructuredReport = async (id: string) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const response = await apiClient.post(`/reports/${id}/generate-structured`)
+      console.log('Structured report generation started:', response.data)
+      return response.data
+    } catch (err) {
+      console.error('Error generating structured report:', err)
+      error.value = err.message || 'Failed to generate structured report'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const generateADStructure = async (id: string) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      console.log('Generating complete AD structure for report:', id)
+      // Use a longer timeout (60 seconds) for this endpoint as it can take time
+      const response = await apiClient.post(`/reports/${id}/generate-ad-structure`, {}, {
+        timeout: 60000 // 60 seconds timeout
+      })
+      console.log('AD structure generation completed:', response.data)
+      
+      // Refresh the current report to get the new structured data
+      if (currentReport.value && currentReport.value.id === id) {
+        await fetchReport(id)
+      }
+      
+      return response.data
+    } catch (err) {
+      console.error('Error generating AD structure:', err)
+      error.value = err.message || 'Failed to generate AD structure'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const fetchStructuredReport = async (id: string, format: string = 'html') => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      console.log(`Fetching structured report ${id} in format ${format}...`)
+      const response = await apiClient.get(`/reports/${id}/structured?output_format=${format}&_t=${Date.now()}`)
+      
+      console.log('Structured report fetched successfully:', {
+        id: response.data.id,
+        format: response.data.output_format,
+        contentKeys: response.data.content ? Object.keys(response.data.content) : 'none',
+        hasStructuredMetadata: !!response.data.structured_metadata
+      })
+      
+      return response.data
+    } catch (err) {
+      console.error(`Error fetching structured report ${id}:`, err)
+      error.value = err.message || 'Failed to fetch structured report'
+      
+      // Fallback to regular report if structured fails
+      console.log('Falling back to regular report fetch...')
+      return await fetchReport(id)
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     reports,
     currentReport,
@@ -268,11 +362,18 @@ export const useReportStore = defineStore('report', () => {
     error,
     fetchReportTemplates,
     createReport,
+    generateStructuredReport,
+    generateADStructure,
     fetchReport,
+    fetchStructuredReport,
     regenerateSection,
     deleteReport,
     downloadReportAsDocx,
     previewReport,
-    reset
+    reset,
+    // Enhanced AD Report methods
+    fetchEnhancedADTemplates,
+    createEnhancedADReport,
+    getReportQualityMetrics
   }
 })

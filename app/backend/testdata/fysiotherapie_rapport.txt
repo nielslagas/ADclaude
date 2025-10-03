@@ -1,0 +1,174 @@
+FYSIOTHERAPIE EVALUATIERAPPORT
+
+Patiënt: J. van der Berg
+BSN: 123456789
+Geboortedatum: 15-03-1978
+Behandelperiode: 02-06-2024 t/m heden
+
+Behandelend fysiotherapeut: B. de Wit
+Praktijk: FysioVitaal Utrecht
+Adres: Gezondheidsstraat 15, 1234 AB Utrecht
+Telefoon: 030-9876543
+
+AANMELDING EN DIAGNOSE:
+Aangemeld door: Dr. M. Peters (arbeidsgeneeskundige)
+Datum intake: 02-06-2024
+Hoofdklacht: Lumbale rugpijn met radiculopathie links
+Medische diagnose: Hernia nuclei pulposi L4-L5
+
+ANAMNESE BIJ INTAKE:
+Ontstaan klacht: Acute onset 20 mei 2024 tijdens tillen archiefdoos op werk
+Pijn VAS-score: 8/10
+Uitstraling: Naar linker been tot knie
+Verergerende factoren: Zitten >30 min, vooroverbuigen, hoesten
+Verlichtende factoren: Liggen, bewegen, warmte
+
+OBJECTIEF ONDERZOEK (02-06-2024):
+
+Houding en beweging:
+- Antalgische houding: lichte voorovergebogen houding
+- Beperkte lumbale flexie: 30° (normaal 60-80°)
+- Lumbale extensie: 15° (normaal 20-30°)
+- Zijwaartse flexie: links 20°, rechts 30° (normaal 40°)
+- Rotatie: links 25°, rechts 35° (normaal 45°)
+
+Neurologisch onderzoek:
+- Straight Leg Raising test: positief links bij 40°
+- Reflexen: Achillesreflex links verminderd
+- Sensibiliteit: hypoesthesie L5 dermatoom links
+- Kracht: dorsiflexie enkel links 4/5, overige 5/5
+
+Palpatie:
+- Verhoogde spiertonus paravertebrale spieren L3-L5
+- Trigger points in musculus quadratus lumborum
+- Beperkte mobiliteit facetgewrichten L4-L5
+
+BEHANDELPLAN:
+Frequentie: 2x per week, 45 minuten per sessie
+Geschatte duur: 12-16 weken
+Doelstellingen:
+1. Pijnvermindering tot VAS <4
+2. Verbeteren bewegingsbereik lumbale wervelkolom
+3. Krachtherstel core musculatuur
+4. Werkgerichte training voor ADL en werk
+
+BEHANDELING EN PROGRESSIE:
+
+Week 1-2 (02-06 t/m 15-06):
+- Pijnbestrijding: TENS, warmte, massage
+- Voorzichtige mobilisatie
+- Ademhalings- en ontspanningsoefeningen
+- ADL-advies en rugschool
+Progressie: VAS van 8 naar 7
+
+Week 3-4 (16-06 t/m 29-06):  
+- Geleidelijke mobilisatie lumbale wervelkolom
+- Start krachtoefeningen core (niveau 1)
+- Houdings- en bewegingsschuling
+- Thuisoefenprogramma gestart
+Progressie: VAS naar 6, lichte verbetering flexie (40°)
+
+Week 5-8 (30-06 t/m 27-07):
+- Intensivering krachtoefeningen
+- Functionele oefeningen (tillen, bukken)
+- Loopschool en conditieverbetering
+- Werkplekergonomie besproken
+Progressie: VAS naar 5, duidelijke krachtoename
+
+Week 9-12 (28-07 t/m 24-08):
+- Sport-specifieke oefeningen
+- Werkgerichte training (langdurig zitten)
+- Uitbreiden thuisoefeningen
+- Preventie-educatie
+Progressie: VAS naar 4, flexie verbeterd naar 50°
+
+Week 13-16 (25-08 t/m 21-09):
+- Voorbereiding werkhervatting
+- Simulatie werkactiviteiten
+- Graduele belastingopbouw
+- Onderhoudsprogramma opgesteld
+Progressie: VAS naar 3-4, functionele verbetering 70%
+
+HUIDIGE STATUS (21-09-2024):
+
+Pijn en functie:
+- VAS-score: 3-4/10 (rustpijn 2, bewegingspijn 4-5)
+- Lumbale flexie: 55° (verbetering van 25°)
+- Straight Leg Raising: negatief tot 70°
+- Kracht: alle spiergroepen 5/5
+- Uithoudingsvermogen: duidelijk verbeterd
+
+Activiteiten Dagelijks Leven:
+- Zitten: 45-60 minuten mogelijk
+- Staan: 60 minuten zonder problemen
+- Lopen: 2 km mogelijk
+- Tillen: tot 8-10 kg verantwoord
+- Autorijden: 45 minuten mogelijk
+- Slapen: veel beter, nog incidenteel wakker door pijn
+
+WERKGERICHTE BEOORDELING:
+
+Kantoorwerk capaciteiten:
+- Zitten achter computer: 45-60 min blokken met pauzes
+- Typen en muiswerk: onbeperkt mogelijk
+- Telefoneren: geen beperkingen
+- Lichte administratieve taken: volledig mogelijk
+
+Fysieke beperkingen werk:
+- Tillen: maximaal 8-10 kg (was 15 kg voor ongeluk)
+- Langdurig zitten: pauzes elke 45-60 minuten nodig
+- Vooroverbuigen: nog beperkt voor archivering
+- Werkdag duur: opbouw van 4 naar 8 uur aanbevolen
+
+AANBEVELINGEN WERKHERVATTING:
+
+Startfase (week 1-2):
+- 3-4 uur per dag, flexibele tijden
+- Ergonomische werkplek met verstelbaar bureau
+- Pauzes elke 45 minuten voor bewegen
+- Geen tillen >5 kg
+- Evaluatie na 1 week
+
+Opbouwfase (week 3-6):
+- Geleidelijke uitbreiding naar 6 uur
+- Introduceren normale werktaken
+- Conditieopbouw monitoren
+- Thuiswerken 1 dag per week overwegen
+
+Eindfase (week 7-12):
+- Opbouw naar volledige werkdag
+- Alle taken mogelijk behalve zwaar tillen
+- Preventieve maatregelen implementeren
+- Nazorg fysiotherapie 1x per 2 weken
+
+ERGONOMISCHE AANBEVELINGEN:
+
+Werkplek:
+- Verstelbaar zit-sta bureau
+- Ergonomische bureaustoel met lendensteuning  
+- Externe monitor op ooghoogte
+- Document houder naast scherm
+- Voetensteunn indien nodig
+
+Werkhouding:
+- Afwisselen zitten/staan elke 45-60 minuten
+- Regelmatige korte bewegingspauzes
+- Rugschool principes toepassen
+- Dynamisch werken stimuleren
+
+NAZORG EN PREVENTIE:
+- Fysiotherapie: 1x per 2 weken eerste 2 maanden
+- Thuisoefenprogramma: dagelijks 15 minuten
+- Sporten: geleidelijk hervatten (zwemmen, fietsen)
+- Rugschool herhaling over 6 maanden
+- Contact bij terugval van klachten
+
+PROGNOSE:
+Goed tot zeer goed voor werkhervatting binnen 6-8 weken. Volledige werkhervatting realistisch binnen 3 maanden bij geleidelijke opbouw en adequate ergonomische aanpassingen.
+
+Patiënt is gemotiveerd en heeft goed meegewerkt aan behandeling. Risico op recidief is laag bij naleven preventieve maatregelen.
+
+B. de Wit
+Fysiotherapeut
+BIG-registratie: 19012345678
+Datum rapport: 21-09-2024

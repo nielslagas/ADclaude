@@ -1,0 +1,273 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "AI-Arbeidsdeskundige Performance Profiling",
+    "tags": ["performance", "profiling", "rag", "optimization"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-30m",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Response Time Percentiles",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(ai_arbeidsdeskundige_processing_time_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(ai_arbeidsdeskundige_processing_time_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(ai_arbeidsdeskundige_processing_time_bucket[5m]))",
+            "legendFormat": "99th percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Request Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(ai_arbeidsdeskundige_processing_time_count[5m])",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "reqps",
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Processing Time Heatmap",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "rate(ai_arbeidsdeskundige_processing_time_bucket[2m])",
+            "legendFormat": "{{le}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "spectrum",
+              "scheme": "Spectral"
+            },
+            "unit": "s"
+          }
+        },
+        "options": {
+          "calculate": false,
+          "yAxis": {
+            "scale": "linear"
+          }
+        },
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Memory Usage by Component",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_memory_usage",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "MB",
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "stacking": {"mode": "normal"}
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 18}
+      },
+      {
+        "id": 5,
+        "title": "CPU Usage Estimation",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "(rate(ai_arbeidsdeskundige_processing_time_count[5m]) * avg(ai_arbeidsdeskundige_processing_time)) / 10",
+            "legendFormat": "CPU Load"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 0.7},
+                {"color": "red", "value": 0.9}
+              ]
+            },
+            "min": 0,
+            "max": 1,
+            "unit": "percentunit"
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 18}
+      },
+      {
+        "id": 6,
+        "title": "Bottleneck Analysis",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, avg_over_time(ai_arbeidsdeskundige_processing_time[10m]))",
+            "legendFormat": "{{component}}",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "palette-classic"}
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Value"},
+              "properties": [
+                {"id": "displayName", "value": "Avg Processing Time"},
+                {"id": "color", "value": {"mode": "continuous-GrYlRd"}}
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 18}
+      },
+      {
+        "id": 7,
+        "title": "Document Processing Pipeline",
+        "type": "flowchart",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_processing_time{component=\"document_classifier\"}",
+            "legendFormat": "Classification"
+          },
+          {
+            "expr": "ai_arbeidsdeskundige_processing_time{component=\"vector_store\"}",
+            "legendFormat": "Vector Store"
+          },
+          {
+            "expr": "ai_arbeidsdeskundige_processing_time{component=\"rag_pipeline\"}",
+            "legendFormat": "RAG Pipeline"
+          },
+          {
+            "expr": "ai_arbeidsdeskundige_processing_time{component=\"quality_controller\"}",
+            "legendFormat": "Quality Control"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "nodes": [
+            {"id": "input", "title": "Document Input", "x": 0, "y": 0},
+            {"id": "classification", "title": "Classification", "x": 1, "y": 0},
+            {"id": "vectorization", "title": "Vectorization", "x": 2, "y": 0},
+            {"id": "rag", "title": "RAG Processing", "x": 3, "y": 0},
+            {"id": "quality", "title": "Quality Control", "x": 4, "y": 0},
+            {"id": "output", "title": "Report Output", "x": 5, "y": 0}
+          ],
+          "edges": [
+            {"source": "input", "target": "classification"},
+            {"source": "classification", "target": "vectorization"},
+            {"source": "vectorization", "target": "rag"},
+            {"source": "rag", "target": "quality"},
+            {"source": "quality", "target": "output"}
+          ]
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 26}
+      },
+      {
+        "id": 8,
+        "title": "Performance Alerts",
+        "type": "alertlist",
+        "options": {
+          "showOptions": "changes",
+          "maxItems": 20,
+          "sortOrder": "time desc",
+          "dashboardAlerts": false,
+          "alertInstanceLabelFilter": "{service=\"rag-pipeline\"}"
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 34}
+      },
+      {
+        "id": 9,
+        "title": "Resource Optimization Suggestions",
+        "type": "text",
+        "options": {
+          "mode": "markdown",
+          "content": "## Performance Optimization Tips\n\n### Current Analysis\n- Monitor processing time percentiles to identify slow operations\n- Check memory usage patterns for potential leaks\n- Review request rate vs response time correlation\n\n### Optimization Strategies\n1. **Document Classification**: Optimize for <2s average\n2. **Vector Store**: Implement caching for repeated queries\n3. **RAG Pipeline**: Consider chunking strategy optimization\n4. **Quality Control**: Balance thoroughness with speed\n\n### Thresholds\n- **Good**: <5s processing time, <100MB memory\n- **Warning**: 5-10s processing time, 100-200MB memory\n- **Critical**: >10s processing time, >200MB memory"
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 34}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "component",
+          "type": "query",
+          "query": "label_values(ai_arbeidsdeskundige_processing_time, component)",
+          "refresh": "on_time_range_change",
+          "includeAll": true,
+          "allValue": ".*"
+        },
+        {
+          "name": "percentile",
+          "type": "custom",
+          "query": "50,95,99",
+          "current": {
+            "selected": false,
+            "text": "95",
+            "value": "95"
+          }
+        }
+      ]
+    }
+  }
+}

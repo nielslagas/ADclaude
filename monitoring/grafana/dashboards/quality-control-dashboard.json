@@ -1,0 +1,241 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "AI-Arbeidsdeskundige Quality Control Dashboard",
+    "tags": ["quality", "rag", "ai", "content"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "1m",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Overall Quality Score Trend",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "avg(ai_arbeidsdeskundige_quality_score)",
+            "legendFormat": "Average Quality"
+          },
+          {
+            "expr": "quantile(0.95, ai_arbeidsdeskundige_quality_score)",
+            "legendFormat": "95th Percentile"
+          },
+          {
+            "expr": "quantile(0.05, ai_arbeidsdeskundige_quality_score)",
+            "legendFormat": "5th Percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "opacity"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Average Quality"},
+              "properties": [
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}},
+                {"id": "custom.lineWidth", "value": 3}
+              ]
+            }
+          ]
+        },
+        "options": {
+          "tooltip": {"mode": "multi", "sort": "desc"},
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "gridPos": {"h": 10, "w": 16, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Quality Score Distribution",
+        "type": "histogram",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_quality_score",
+            "legendFormat": "Quality Distribution"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percentunit"
+          }
+        },
+        "options": {
+          "bucketSize": 0.05
+        },
+        "gridPos": {"h": 10, "w": 8, "x": 16, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Quality by Component",
+        "type": "barchart",
+        "targets": [
+          {
+            "expr": "avg_over_time(ai_arbeidsdeskundige_quality_score[1h])",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          }
+        },
+        "options": {
+          "orientation": "vertical",
+          "displayMode": "list"
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 10}
+      },
+      {
+        "id": 4,
+        "title": "Quality Threshold Violations",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(ai_arbeidsdeskundige_quality_score < 0.75)",
+            "legendFormat": "Below Threshold"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 10}
+      },
+      {
+        "id": 5,
+        "title": "Quality Improvement Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "(avg_over_time(ai_arbeidsdeskundige_quality_score[1h]) - avg_over_time(ai_arbeidsdeskundige_quality_score[1h] offset 1h)) / avg_over_time(ai_arbeidsdeskundige_quality_score[1h] offset 1h)",
+            "legendFormat": "Improvement Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": -0.1},
+                {"color": "yellow", "value": 0},
+                {"color": "green", "value": 0.05}
+              ]
+            },
+            "unit": "percentunit"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 10}
+      },
+      {
+        "id": 6,
+        "title": "User Satisfaction Correlation",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "ai_arbeidsdeskundige_user_satisfaction",
+            "legendFormat": "User Satisfaction"
+          },
+          {
+            "expr": "ai_arbeidsdeskundige_quality_score",
+            "legendFormat": "Quality Score"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18}
+      },
+      {
+        "id": 7,
+        "title": "Quality Issues by Severity",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (severity) (quality_issues_total)",
+            "legendFormat": "{{severity}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18}
+      },
+      {
+        "id": 8,
+        "title": "Recent Quality Alerts",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"backend-api\"} |= \"quality\" |= \"alert\"",
+            "legendFormat": ""
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": false,
+          "showCommonLabels": false,
+          "wrapLogMessage": true,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "dedupStrategy": "none",
+          "sortOrder": "Descending"
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 26}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "time_range",
+          "type": "interval",
+          "query": "1m,5m,15m,30m,1h,3h,6h,12h,1d",
+          "current": {
+            "selected": false,
+            "text": "5m",
+            "value": "5m"
+          }
+        }
+      ]
+    }
+  }
+}

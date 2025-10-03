@@ -9,6 +9,7 @@ import random
 import time
 import functools
 from app.core.config import settings
+from app.utils.rag_cache import cached
 import logging
 
 # Set up logging
@@ -155,17 +156,20 @@ def validate_api_connection() -> bool:
         logger.error(f"API connection validation failed: {str(specific_error)}")
         return False
 
-def generate_embedding(text: str, dimension: int = 768) -> List[float]:
+@cached("embed:doc", ttl=604800)  # 7 days
+def generate_embedding(text: str, dimension: int = 768, task_type: str = "RETRIEVAL_DOCUMENT") -> List[float]:
     """
     Generate embeddings using Google's Gemini embedding model.
     
     Args:
         text: The text to generate embeddings for
         dimension: The dimension of the embeddings to return (default 768)
+        task_type: The type of embedding task (default "RETRIEVAL_DOCUMENT")
     
     Returns:
         A list of floating point values representing the embedding
     """
+    # TODO: Cache document embeddings based on text hash
     if not settings.GOOGLE_API_KEY or not API_INITIALIZED:
         logger.warning("Google API not available, using fallback embedding generation")
         return generate_fallback_embedding(text, dimension)
@@ -320,6 +324,7 @@ def calculate_similarity(embedding1: List[float], embedding2: List[float]) -> fl
     max_retries=3,
     errors_to_retry=(RateLimitError, APIConnectionError)
 )
+@cached("embed:query", ttl=604800)  # 7 days
 def generate_query_embedding(text: str, dimension: int = 768) -> List[float]:
     """
     Generate embeddings specifically for query purposes.
@@ -332,6 +337,7 @@ def generate_query_embedding(text: str, dimension: int = 768) -> List[float]:
     Returns:
         A list of floating point values representing the query embedding
     """
+    # TODO: Cache query embeddings based on text hash
     if not settings.GOOGLE_API_KEY or not API_INITIALIZED:
         logger.warning("Google API not available, using fallback embedding generation for query")
         return generate_fallback_embedding(text, dimension)

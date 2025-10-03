@@ -1,0 +1,344 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Promtail Configuration for AI-Arbeidsdeskundige Log Collection
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ BACKEND API LOGS                                                       │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: backend-api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: backend-api
+          service: ai-arbeidsdeskundige
+          component: api
+          __path__: /var/log/backend-api/*.log
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            module: module
+            request_id: request_id
+            user_id: user_id
+            component: component
+            processing_time: processing_time
+            error_type: error_type
+      
+      # Extract timestamps
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      
+      # Set log level labels
+      - labels:
+          level:
+          module:
+          component:
+          request_id:
+      
+      # Add metrics for log analysis
+      - metrics:
+          processing_time_seconds:
+            type: Histogram
+            description: "Processing time for requests"
+            source: processing_time
+            config:
+              buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60]
+          
+          log_entries_total:
+            type: Counter
+            description: "Total log entries by level"
+            config:
+              match_all: true
+              count_entry_bytes: false
+          
+          error_entries_total:
+            type: Counter
+            description: "Total error log entries"
+            config:
+              value: "1"
+              action: inc
+            match_stage:
+              selector: '{level="ERROR"}'
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ CELERY WORKER LOGS                                                     │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: celery-worker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: celery-worker
+          service: ai-arbeidsdeskundige
+          component: worker
+          __path__: /var/log/celery-worker/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            task_id: task_id
+            task_name: task_name
+            worker_id: worker_id
+            queue: queue
+            execution_time: execution_time
+      
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      
+      - labels:
+          level:
+          task_name:
+          queue:
+          worker_id:
+      
+      - metrics:
+          task_execution_time_seconds:
+            type: Histogram
+            description: "Task execution time"
+            source: execution_time
+            config:
+              buckets: [1, 5, 10, 30, 60, 300, 600]
+          
+          celery_task_total:
+            type: Counter
+            description: "Total Celery tasks processed"
+            config:
+              match_all: true
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ RAG PIPELINE LOGS                                                      │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: rag-pipeline
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: rag-pipeline
+          service: ai-arbeidsdeskundige
+          component: rag
+          __path__: /var/log/rag/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            pipeline_stage: pipeline_stage
+            document_id: document_id
+            document_type: document_type
+            processing_strategy: processing_strategy
+            chunk_count: chunk_count
+            vector_similarity: vector_similarity
+            quality_score: quality_score
+            llm_provider: llm_provider
+            llm_model: llm_model
+            token_usage: token_usage
+            cost_usd: cost_usd
+      
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      
+      - labels:
+          level:
+          pipeline_stage:
+          document_type:
+          processing_strategy:
+          llm_provider:
+          llm_model:
+      
+      - metrics:
+          rag_processing_duration_seconds:
+            type: Histogram
+            description: "RAG processing duration by stage"
+            source: processing_time
+            config:
+              buckets: [0.5, 1, 2, 5, 10, 20, 30, 60]
+          
+          rag_quality_score:
+            type: Histogram
+            description: "RAG output quality scores"
+            source: quality_score
+            config:
+              buckets: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+          
+          rag_token_usage_total:
+            type: Counter
+            description: "Total tokens used in RAG pipeline"
+            source: token_usage
+            config:
+              action: add
+          
+          rag_cost_usd_total:
+            type: Counter  
+            description: "Total cost in USD for RAG operations"
+            source: cost_usd
+            config:
+              action: add
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ QUALITY CONTROL LOGS                                                   │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: quality-control
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: quality-control
+          service: ai-arbeidsdeskundige
+          component: quality
+          __path__: /var/log/quality/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            report_id: report_id
+            section: section
+            quality_score: quality_score
+            issues_found: issues_found
+            severity: severity
+            improvement_applied: improvement_applied
+            validation_result: validation_result
+      
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      
+      - labels:
+          level:
+          section:
+          severity:
+          validation_result:
+      
+      - metrics:
+          quality_issues_total:
+            type: Counter
+            description: "Total quality issues found"
+            source: issues_found
+            config:
+              action: add
+          
+          quality_improvements_total:
+            type: Counter
+            description: "Total quality improvements applied"
+            config:
+              value: "1"
+              action: inc
+            match_stage:
+              selector: '{improvement_applied="true"}'
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ DOCKER CONTAINER LOGS                                                  │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["ai-arbeidsdeskundige=true"]
+    
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)' 
+        target_label: 'container_name'
+      - source_labels: ['__meta_docker_container_label_ai_arbeidsdeskundige_component']
+        target_label: 'component'
+      - source_labels: ['__meta_docker_container_label_ai_arbeidsdeskundige_service']
+        target_label: 'service'
+    
+    pipeline_stages:
+      - docker: {}
+      
+      - json:
+          expressions:
+            level: level
+            message: message
+      
+      - labels:
+          container_name:
+          component:
+          service:
+          level:
+      
+      - output:
+          source: message
+
+  # ┌────────────────────────────────────────────────────────────────────────┐
+  # │ SYSTEM LOGS                                                            │
+  # └────────────────────────────────────────────────────────────────────────┘
+  - job_name: system-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system
+          service: ai-arbeidsdeskundige
+          component: system
+          __path__: /var/log/{syslog,messages,kern.log}
+    
+    pipeline_stages:
+      - match:
+          selector: '{job="system"}'
+          stages:
+            - regex:
+                expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\S+)\s+(?P<service>\S+):\s+(?P<message>.*)$'
+            
+            - timestamp:
+                source: timestamp
+                format: 'Jan 2 15:04:05'
+            
+            - labels:
+                hostname:
+                service:
+
+# ┌────────────────────────────────────────────────────────────────────────┐
+# │ GLOBAL PIPELINE STAGES FOR LOG ENRICHMENT                             │
+# └────────────────────────────────────────────────────────────────────────┘
+global:
+  pipeline_stages:
+    # Add common labels to all logs
+    - static_labels:
+        environment: production
+        cluster: ai-arbeidsdeskundige
+        version: "1.0.0"
+    
+    # Drop debug logs in production (optional)
+    - drop:
+        expression: '.*level="DEBUG".*'
+        drop_counter_reason: debug_log_dropped
+    
+    # Add structured parsing for error stack traces
+    - match:
+        selector: '{level="ERROR"}'
+        stages:
+          - multiline:
+              firstline: '^\d{4}-\d{2}-\d{2}'
+              max_wait_time: 3s
+          
+          - regex:
+              expression: '(?P<error_type>\w+Error|\w+Exception)'
+          
+          - labels:
+              error_type:

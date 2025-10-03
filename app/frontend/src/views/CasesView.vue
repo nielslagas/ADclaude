@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCaseStore } from '@/stores/case';
 import { useNotificationStore } from '@/stores/notification';
+import SkeletonLoader from '@/components/SkeletonLoader.vue';
+import FormField from '@/components/FormField.vue';
 import type { Case, CaseCreate } from '@/types';
 
 const caseStore = useCaseStore();
@@ -10,6 +12,7 @@ const router = useRouter();
 const notificationStore = useNotificationStore();
 const loading = ref(false);
 const showCreateForm = ref(false);
+const isFormValid = ref(false);
 const newCase = ref<CaseCreate>({
   title: '',
   description: ''
@@ -81,15 +84,43 @@ const getStatusLabel = (status: string): string => {
   };
   return statusLabels[status] || status;
 };
+
+// Form validation functions
+const validateCaseTitle = (value: string | number): string | null => {
+  const title = String(value).trim();
+  
+  if (title.length < 3) {
+    return 'Titel moet minimaal 3 karakters bevatten';
+  }
+  
+  if (title.length > 100) {
+    return 'Titel mag maximaal 100 karakters bevatten';
+  }
+  
+  // Check for duplicate titles (basic check)
+  const existingCase = caseStore.cases.find(c => 
+    c.title.toLowerCase() === title.toLowerCase()
+  );
+  
+  if (existingCase) {
+    return 'Er bestaat al een case met deze titel';
+  }
+  
+  return null;
+};
+
+const handleTitleValidation = (isValid: boolean, error?: string) => {
+  isFormValid.value = isValid && !error;
+};
 </script>
 
 <template>
-  <div class="cases-container">
+  <div class="cases-container" role="main" aria-label="Cases overzicht">
     <!-- Page Header -->
-    <div class="page-header">
+    <header class="page-header" role="banner">
       <div class="header-content">
         <div class="header-text">
-          <h1>Mijn Cases</h1>
+          <h1 id="page-title" tabindex="-1">Mijn Cases</h1>
           <p class="header-subtitle">Beheer uw arbeidsdeskundig onderzoek cases</p>
         </div>
         <div class="header-actions">
@@ -98,6 +129,9 @@ const getStatusLabel = (status: string): string => {
             class="btn btn-primary"
             :class="{ 'btn-outline': showCreateForm }"
             :disabled="loading"
+            :aria-expanded="showCreateForm"
+            :aria-controls="showCreateForm ? 'create-form' : undefined"
+            aria-label="Wissel tussen nieuwe case formulier tonen of verbergen"
           >
             <svg v-if="!showCreateForm" class="btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
@@ -109,46 +143,51 @@ const getStatusLabel = (status: string): string => {
           </button>
         </div>
       </div>
-    </div>
-
+    </header>
 
     <!-- Create Case Form -->
     <Transition name="slide-down">
-      <div v-if="showCreateForm" class="create-form-container">
+      <div v-if="showCreateForm" class="create-form-container" id="create-form" role="region" aria-labelledby="form-title">
         <div class="card">
           <div class="card-header">
-            <h2 class="card-title">Nieuwe Case Aanmaken</h2>
+            <h2 class="card-title" id="form-title">Nieuwe Case Aanmaken</h2>
             <p class="card-subtitle">Voer de basisgegevens in voor uw nieuwe case</p>
           </div>
           <div class="card-body">
-            <form @submit.prevent="createCase">
-              <div class="form-group">
-                <label for="title" class="form-label">Titel *</label>
-                <input 
-                  type="text" 
-                  id="title" 
-                  v-model="newCase.title" 
-                  placeholder="Bijvoorbeeld: Onderzoek Jan Janssen"
-                  required
-                  class="form-input"
-                  :disabled="loading"
-                />
-              </div>
+            <form @submit.prevent="createCase" role="form" aria-label="Nieuwe case aanmaken formulier">
+              <FormField
+                v-model="newCase.title"
+                type="text"
+                label="Titel"
+                placeholder="Bijvoorbeeld: Onderzoek Jan Janssen"
+                help-text="Geef uw case een duidelijke, herkenbare titel"
+                required
+                :disabled="loading"
+                :max-length="100"
+                show-char-counter
+                :validators="[validateCaseTitle]"
+                @validation="handleTitleValidation"
+              />
 
-              <div class="form-group">
-                <label for="description" class="form-label">Beschrijving (optioneel)</label>
-                <textarea 
-                  id="description" 
-                  v-model="newCase.description" 
-                  placeholder="Korte beschrijving van de case..."
-                  class="form-textarea"
-                  rows="3"
-                  :disabled="loading"
-                ></textarea>
-              </div>
+              <FormField
+                v-model="newCase.description"
+                type="textarea"
+                label="Beschrijving"
+                placeholder="Korte beschrijving van de case..."
+                help-text="Optionele beschrijving om context te geven aan uw case"
+                :disabled="loading"
+                :max-length="500"
+                :rows="4"
+                show-char-counter
+              />
 
               <div class="form-actions">
-                <button type="submit" class="btn btn-primary" :disabled="loading">
+                <button 
+                  type="submit" 
+                  class="btn btn-primary" 
+                  :disabled="loading || !newCase.title.trim()"
+                  :aria-label="loading ? 'Case wordt aangemaakt, even geduld...' : 'Maak nieuwe case aan'"
+                >
                   <svg v-if="loading" class="btn-icon animate-spin" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 3a7 7 0 100 14 7 7 0 000-14zm0 2a5 5 0 110 10 5 5 0 010-10z" opacity="0.25"/>
                     <path d="M10 3a7 7 0 017 7h-2a5 5 0 00-5-5V3z"/>
@@ -172,12 +211,12 @@ const getStatusLabel = (status: string): string => {
     <div class="cases-section">
       <!-- Loading Skeleton -->
       <div v-if="loading && !caseStore.cases.length" class="cases-grid">
-        <div v-for="n in 3" :key="n" class="case-skeleton">
-          <div class="skeleton skeleton-header"></div>
-          <div class="skeleton skeleton-text"></div>
-          <div class="skeleton skeleton-text short"></div>
-          <div class="skeleton skeleton-footer"></div>
-        </div>
+        <SkeletonLoader 
+          v-for="n in 6" 
+          :key="`skeleton-${n}`" 
+          type="card" 
+          aria-label="Case wordt geladen"
+        />
       </div>
 
       <!-- Empty State -->
@@ -248,35 +287,73 @@ const getStatusLabel = (status: string): string => {
 </template>
 
 <style scoped>
-/* Container */
+/* Ultra-Modern Container */
 .cases-container {
-  max-width: 1280px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: var(--spacing-2xl);
+  background: linear-gradient(135deg, 
+    rgba(37, 99, 235, 0.02) 0%, 
+    rgba(147, 197, 253, 0.01) 50%, 
+    rgba(37, 99, 235, 0.02) 100%
+  );
+  min-height: 100vh;
 }
 
-/* Page Header */
+/* Elegant Page Header */
 .page-header {
   margin-bottom: var(--spacing-2xl);
+  padding: var(--spacing-2xl);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(37, 99, 235, 0.08);
+  box-shadow: 0 8px 32px -8px rgba(37, 99, 235, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.page-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, 
+    var(--primary-color) 0%, 
+    var(--primary-hover) 50%, 
+    var(--primary-color) 100%
+  );
 }
 
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-xl);
+  position: relative;
+  z-index: 1;
 }
 
 .header-text h1 {
-  margin: 0 0 var(--spacing-sm) 0;
-  font-size: var(--font-size-4xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: 3.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--text-primary), var(--primary-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 
 .header-subtitle {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 .header-actions {
@@ -410,22 +487,43 @@ const getStatusLabel = (status: string): string => {
   font-size: var(--font-size-lg);
 }
 
-/* Case Cards */
+/* Premium Case Cards */
 .case-card {
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(37, 99, 235, 0.08);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
   cursor: pointer;
-  transition: all var(--transition-normal);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 16px -4px rgba(37, 99, 235, 0.1);
+}
+.case-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(37, 99, 235, 0.05), 
+    transparent
+  );
+  transition: left 0.6s ease;
+}
+
+.case-card:hover::before {
+  left: 100%;
 }
 
 .case-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--border-hover);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px -12px rgba(37, 99, 235, 0.25);
+  border-color: rgba(37, 99, 235, 0.2);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .case-card:focus {

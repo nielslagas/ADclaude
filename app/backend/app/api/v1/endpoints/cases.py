@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Optional
 from uuid import UUID
 
-from app.core.security import verify_token
+from app.core.security import verify_token, require_auth
 from app.models.case import Case, CaseCreate, CaseRead, CaseUpdate
 from app.db.database_service import db_service
 
 router = APIRouter()
 
 @router.post("/", response_model=CaseRead, status_code=status.HTTP_201_CREATED)
-async def create_case(case_data: CaseCreate, user_info = Depends(verify_token)):
+async def create_case(case_data: CaseCreate, user_info = Depends(require_auth)):
     """
     Create a new case
     """
@@ -37,7 +37,7 @@ async def create_case(case_data: CaseCreate, user_info = Depends(verify_token)):
         )
 
 @router.get("/", response_model=List[CaseRead])
-async def list_cases(user_info = Depends(verify_token)):
+async def list_cases(user_info = Depends(require_auth)):
     """
     List all cases for the current user
     """
@@ -53,7 +53,7 @@ async def list_cases(user_info = Depends(verify_token)):
         )
 
 @router.get("/{case_id}", response_model=CaseRead)
-async def get_case(case_id: UUID, user_info = Depends(verify_token)):
+async def get_case(case_id: UUID, user_info = Depends(require_auth)):
     """
     Get a specific case by ID
     """
@@ -82,7 +82,7 @@ async def get_case(case_id: UUID, user_info = Depends(verify_token)):
         )
 
 @router.patch("/{case_id}", response_model=CaseRead)
-async def update_case(case_id: UUID, case_data: CaseUpdate, user_info = Depends(verify_token)):
+async def update_case(case_id: UUID, case_data: CaseUpdate, user_info = Depends(require_auth)):
     """
     Update a case
     """
@@ -120,7 +120,7 @@ async def update_case(case_id: UUID, case_data: CaseUpdate, user_info = Depends(
         )
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_case(case_id: UUID, user_info = Depends(verify_token)):
+async def delete_case(case_id: UUID, user_info = Depends(require_auth)):
     """
     Mark a case as deleted (soft delete)
     """

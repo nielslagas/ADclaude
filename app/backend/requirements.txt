@@ -5,13 +5,28 @@ sqlmodel>=0.0.16
 alembic>=1.13.1
 celery>=5.3.6
 redis>=5.0.1
+cachetools>=5.3.0
 google-generativeai>=0.4.0
 pydantic>=2.6.1
 pydantic-settings>=2.0.0
+
+# Audio processing dependencies
+pydub>=0.25.1
+ffmpeg-python>=0.2.0
+
+# Enhanced audio format support
+mutagen>=1.47.0
 supabase>=2.3.5
 python-multipart>=0.0.9
 docx2txt>=0.8
 python-docx>=0.8.11
+
+# PDF processing dependencies
+pypdf>=4.0.0
+pdfplumber>=0.10.0
+pytesseract>=0.3.10
+pillow>=10.2.0
+pdf2image>=1.16.3
 psycopg2-binary>=2.9.9
 pgvector>=0.2.5
 anthropic>=0.20.0
@@ -20,3 +35,18 @@ openai-whisper>=20240930
 numba>=0.57.0
 ffmpeg-python>=0.2.0
 torch>=2.0.0
+
+# Testing dependencies
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+httpx>=0.27.0
+pytest-mock>=3.12.0
+faker>=24.0.0
+pytest-xdist>=3.5.0
+
+# Export format dependencies
+reportlab>=4.0.0
+weasyprint>=60.0
+jinja2>=3.1.0
+markdown>=3.5.0

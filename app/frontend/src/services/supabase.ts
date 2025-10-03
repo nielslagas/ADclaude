@@ -14,7 +14,7 @@ const createMockClient = () => {
       signUp: async ({ email, password }: { email: string, password: string }) => {
         console.log('Mock signup with:', email, password);
         // Simulate successful signup
-        const mockUser = { id: 'example_user_id', email, created_at: new Date().toISOString() };
+        const mockUser = { id: '927342ad-d5a0-4f88-9bc3-80f7702073e0', email, created_at: new Date().toISOString() };
         try {
           localStorage.setItem('mock_user', JSON.stringify(mockUser));
         } catch (e) {
@@ -27,10 +27,10 @@ const createMockClient = () => {
       signInWithPassword: async ({ email, password }: { email: string, password: string }) => {
         console.log('Mock login with:', email, password);
         // Accept any email/password for testing
-        const mockUser = { id: 'example_user_id', email, created_at: new Date().toISOString() };
+        const mockUser = { id: '927342ad-d5a0-4f88-9bc3-80f7702073e0', email, created_at: new Date().toISOString() };
         // Use the token that matches what our backend expects
         const mockSession = { 
-          access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJleGFtcGxlX3VzZXJfaWQiLCJuYW1lIjoiVGVzdCBVc2VyIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c', 
+          access_token: 'eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0.eyJzdWIiOiAiOTI3MzQyYWQtZDVhMC00Zjg4LTliYzMtODBmNzcwMjA3M2UwIiwgIm5hbWUiOiAiTmllbHMgTGFnYXMiLCAiaWF0IjogMTUxNjIzOTAyMn0.', 
           refresh_token: 'mock_refresh',
           user: mockUser,
           expires_at: Date.now() + 3600000

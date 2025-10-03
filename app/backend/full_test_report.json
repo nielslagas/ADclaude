@@ -1,0 +1,321 @@
+{
+  "titel": "Arbeidsdeskundig rapport",
+  "versie": "2.0",
+  "template": "standaard",
+  "opdrachtgever": {
+    "naam_bedrijf": "Nederlandse ICT Solutions B.V.",
+    "contactpersoon": "Mevr. S. Jansen",
+    "functie_contactpersoon": "HR Business Partner",
+    "adres": "Techpark 89",
+    "postcode": "3542 AD",
+    "woonplaats": "Utrecht",
+    "telefoonnummer": "030-1234567",
+    "email": "s.jansen@nlictsolutions.nl",
+    "aard_bedrijf": "Software ontwikkeling, ICT consultancy en digitale transformatie",
+    "omvang_bedrijf": "Hoofdkantoor Utrecht, vestigingen Amsterdam en Eindhoven",
+    "aantal_werknemers": "150",
+    "functies_expertises": "Software development, system architecture, project management, consultancy",
+    "website": "www.nlictsolutions.nl"
+  },
+  "werknemer": {
+    "naam": "Jan de Vries",
+    "functie": null,
+    "adres": "Kerkstraat 123",
+    "postcode": "3581 ER",
+    "woonplaats": "Utrecht",
+    "telefoonnummer": "06-98765432",
+    "email": "j.devries@email.com",
+    "geboortedatum": "12-07-1980"
+  },
+  "adviseur": {
+    "naam": "P.R.J. Peters",
+    "functie": "Gecertificeerd Register Arbeidsdeskundige",
+    "adres": null,
+    "postcode": null,
+    "woonplaats": null,
+    "telefoonnummer": "06-81034165",
+    "email": null,
+    "geboortedatum": null
+  },
+  "onderzoek": {
+    "datum_onderzoek": "04-09-2025",
+    "datum_rapportage": "04-09-2025",
+    "locatie_onderzoek": "Utrecht, kantoor opdrachtgever"
+  },
+  "samenvatting_vraagstelling": [
+    "Kan werknemer het eigen werk als Software Architect nog uitvoeren?",
+    "Is het eigen werk met aanpassingen passend te maken?",
+    "Kan werknemer ander werk bij eigen werkgever uitvoeren?",
+    "Zijn er mogelijkheden voor externe re-integratie?"
+  ],
+  "samenvatting_conclusie": [
+    "Werknemer is momenteel ongeschikt voor eigen werk in volle omvang door burn-out klachten",
+    "Met structurele aanpassingen is terugkeer in eigen functie mogelijk binnen 3-6 maanden",
+    "Re-integratie tweede spoor is geïndiceerd naast spoor 1 activiteiten"
+  ],
+  "vraagstelling": [
+    {
+      "vraag": "Kan werknemer het eigen werk als Software Architect nog uitvoeren?",
+      "antwoord": null
+    },
+    {
+      "vraag": "Is het eigen werk met aanpassingen passend te maken?",
+      "antwoord": null
+    },
+    {
+      "vraag": "Kan werknemer ander werk bij eigen werkgever uitvoeren?",
+      "antwoord": null
+    },
+    {
+      "vraag": "Zijn er mogelijkheden voor externe re-integratie?",
+      "antwoord": null
+    }
+  ],
+  "ondernomen_activiteiten": [
+    "Voorbereiding en dossieronderzoek op 04-09-2025",
+    "Bestudering medische informatie van bedrijfsarts Dr. M. Hendricks",
+    "Uitgebreid gesprek met werknemer op werklocatie Utrecht",
+    "Gesprek met werkgever (Mevr. S. Jansen, HR Business Partner)",
+    "Werkplekonderzoek en functieanalyse",
+    "Gezamenlijk overleg werknemer en werkgever",
+    "Opstellen arbeidsdeskundig rapport op 04-09-2025"
+  ],
+  "voorgeschiedenis": "Jan de Vries is sinds september 2015 werkzaam als Software Architect voor 40 uur per week bij Nederlandse ICT Solutions B.V. Hij heeft een lange staat van dienst in de ICT sector en wordt door werkgever als zeer waardevolle medewerker beschouwd.",
+  "verzuimhistorie": "Uitgevallen op 15 januari 2024 met burn-out klachten. Oorzaken: hoge werkdruk, complexe projecten, lange werkdagen. Behandeling gestart bij psycholoog. Therapeutische werkhervatting per 1 maart 2024 met 3 dagen x 5 uur.",
+  "opleidingen": [
+    {
+      "naam": "HBO Informatica",
+      "richting": "Software Engineering",
+      "diploma_certificaat": "Bachelor diploma",
+      "jaar": "2003"
+    },
+    {
+      "naam": "Diverse certificeringen",
+      "richting": "Cloud architectuur, Agile methodieken",
+      "diploma_certificaat": "Certificaten AWS, Azure, Scrum Master",
+      "jaar": "2015-2023"
+    }
+  ],
+  "arbeidsverleden_lijst": [
+    {
+      "periode": "2003-2008",
+      "werkgever": "WebCorp Nederland",
+      "functie": "Junior Software Developer"
+    },
+    {
+      "periode": "2008-2015",
+      "werkgever": "TechFlow Solutions",
+      "functie": "Senior Software Developer"
+    },
+    {
+      "periode": "2015-heden",
+      "werkgever": "Nederlandse ICT Solutions B.V.",
+      "functie": "Software Architect"
+    }
+  ],
+  "bekwaamheden": {
+    "computervaardigheden": "Uitstekend - Expert niveau in Java, Python, Cloud architectuur",
+    "taalvaardigheid": "Nederlands (moedertaal), Engels (zakelijk vloeiend), Duits (basis)",
+    "rijbewijs": "B - Rijdt zelfstandig, geen beperkingen",
+    "overige": "Leidinggevende ervaring, projectmanagement, presentatievaardigheden"
+  },
+  "belastbaarheid": {
+    "datum_beoordeling": "01-03-2024",
+    "beoordelaar": "Dr. M. Hendricks, bedrijfsarts",
+    "fml_rubrieken": [
+      {
+        "rubriek_nummer": "I",
+        "rubriek_naam": "Persoonlijk functioneren",
+        "mate_beperking": "Beperkt",
+        "items": [
+          {
+            "nummer": "2",
+            "beschrijving": "Concentratieproblemen bij complexe taken. Verminderd vermogen tot multitasking. Sneller vermoeid bij mentaal belastend werk.",
+            "specifieke_voorwaarden": "Rustige werkplek, minder complexe taken, geen multitasking"
+          },
+          {
+            "nummer": "5",
+            "beschrijving": "Verminderde stressbestendigheid. Moeite met omgaan met tijdsdruk en deadlines.",
+            "specifieke_voorwaarden": "Geen strikte deadlines, duidelijke prioritering"
+          }
+        ],
+        "toelichting": null
+      },
+      {
+        "rubriek_nummer": "II",
+        "rubriek_naam": "Sociaal functioneren",
+        "mate_beperking": "Beperkt",
+        "items": [
+          {
+            "nummer": "6",
+            "beschrijving": "Verminderde tolerantie voor conflictsituaties. Moeite met assertief optreden in stressvolle situaties.",
+            "specifieke_voorwaarden": "Ondersteunende leidinggevende, geen conflictbemiddeling"
+          }
+        ],
+        "toelichting": null
+      },
+      {
+        "rubriek_nummer": "VI",
+        "rubriek_naam": "Werktijden",
+        "mate_beperking": "Beperkt",
+        "items": [
+          {
+            "nummer": null,
+            "beschrijving": "Energetische beperking tot maximaal 30 uur per week. Geen avond- of weekendwerk. Regelmatige pauzes noodzakelijk.",
+            "specifieke_voorwaarden": "Max 6 uur per dag, flexibele werktijden, thuiswerken mogelijk"
+          }
+        ],
+        "toelichting": null
+      }
+    ],
+    "prognose": "Bij adequate behandeling en geleidelijke opbouw verwacht bedrijfsarts volledig herstel binnen 6-12 maanden. Voorwaarde: structurele werkdrukvermindering en aanpassingen werkomgeving.",
+    "energetische_beperking": "Momenteel 30 uur per week, opbouw naar 36-40 uur mogelijk bij goed verloop"
+  },
+  "eigen_functie": {
+    "naam_functie": "Software Architect",
+    "arbeidspatroon": "Kantoorwerk, flexibele werktijden, hybrid werken mogelijk",
+    "overeenkomst": "Vast contract voor onbepaalde tijd",
+    "aantal_uren": "40 uur per week (momenteel 15 uur therapeutisch)",
+    "salaris": "€ 6.800 bruto per maand",
+    "functieomschrijving": "Ontwerpen van complexe software architecturen, technisch leiderschap van ontwikkelteams, strategische IT beslissingen, stakeholder management, architectuurreviews en kwaliteitsborging."
+  },
+  "functiebelasting": [
+    {
+      "taak": "Architectuurontwerp en technische analyses",
+      "percentage": "40%",
+      "belastende_aspecten": "Hoge concentratie vereist, complexe probleem-oplossing, lange focus periodes"
+    },
+    {
+      "taak": "Team leiderschap en overleg",
+      "percentage": "30%",
+      "belastende_aspecten": "Veel meetings, beslissingen nemen onder druk, conflicthantering"
+    },
+    {
+      "taak": "Stakeholder management",
+      "percentage": "20%",
+      "belastende_aspecten": "Presentaties, diplomatiek overleg, deadlinedruk"
+    },
+    {
+      "taak": "Documentatie en rapportage",
+      "percentage": "10%",
+      "belastende_aspecten": "Gedetailleerd schrijfwerk, nauwkeurigheid vereist"
+    }
+  ],
+  "gesprek_werkgever": {
+    "visie_functioneren": "Zeer waardevolle medewerker met uitstekende technische kennis. Voor burn-out altijd betrouwbaar en kwaliteitsgericht. Werkdruk was inderdaad hoog door personeelstekort.",
+    "visie_duurzaamheid": "Bereid tot alle noodzakelijke aanpassingen. Investeren in behoud werknemer is kosteneffectiever dan vervanging. Structurele maatregelen tegen werkdruk worden getroffen.",
+    "visie_reintegratie": "Sterke voorkeur voor behoud in eigen functie. Tijdelijke aanpassingen acceptabel. Bereid tot mentale ondersteuning en begeleiding."
+  },
+  "gesprek_werknemer": {
+    "visie_beperkingen": "Erkent concentratieproblemen en stress-gevoeligheid. Bang voor terugval bij te snelle opbouw. Wil graag terug maar realistisch over tempo.",
+    "visie_werk": "Houdt van technische uitdagingen maar wil meer werk-privé balans. Bereid tot functieaanpassingen indien nodig voor herstel.",
+    "visie_reintegratie": "Sterke voorkeur voor eigen werkgever. Open voor tijdelijke andere taken. Wil bewijs leveren dat herstel mogelijk is."
+  },
+  "gesprek_gezamenlijk": "Tijdens gezamenlijk overleg is wederzijds begrip getoond. Werkgever benadrukt waarde werknemer, werknemer toont motivatie voor herstel. Afspraken gemaakt over geleidelijke opbouw en structurele verbeteringen.",
+  "geschiktheid_eigen_werk": [
+    {
+      "belastend_aspect": "Complexe architectuurwerkzaamheden vereisen langdurige concentratie",
+      "belastbaarheid_werknemer": "Concentratieproblemen en verminderde mentale belastbaarheid",
+      "conclusie": "Tijdelijke ongeschiktheid voor complexe architectuurtaken"
+    },
+    {
+      "belastend_aspect": "Team leiderschap onder tijdsdruk met conflicthantering",
+      "belastbaarheid_werknemer": "Verminderde stressbestendigheid en moeite met conflicten",
+      "conclusie": "Leidinggevende taken momenteel niet geschikt"
+    },
+    {
+      "belastend_aspect": "40 uur per week werken met regelmatige overuren",
+      "belastbaarheid_werknemer": "Energetisch beperkt tot 30 uur per week",
+      "conclusie": "Urenbeperking vereist"
+    }
+  ],
+  "conclusie_eigen_werk": "Werknemer is momenteel ongeschikt voor eigen functie als Software Architect in volle omvang door burn-out gerelateerde concentratieproblemen, verminderde stressbestendigheid en energetische beperkingen.",
+  "aanpassing_eigen_werk": "Tijdelijke aanpassingen: (1) Urenreductie naar 30 uur per week, (2) Minder complexe architectuurtaken, focus op reviews en documentatie, (3) Geen leidinggevende verantwoordelijkheden, (4) Flexibele werktijden en thuiswerken, (5) Ondersteunende begeleiding door senior collega.",
+  "geschiktheid_ander_werk_intern": "Tijdelijk geschikt voor: Senior Developer functie (32 uur), Technical Writer/Documentalist, Quality Assurance specialist, of Trainer/Mentor rol voor junior developers. Deze functies bieden minder complexiteit en druk.",
+  "geschiktheid_ander_werk_extern": "Bij onvoldoende herstel: ICT consultancy functies, technisch schrijver, docent HBO/cursusleider, of freelance developer voor kleinere projecten. Re-integratie tweede spoor geadviseerd.",
+  "zoekrichting": {
+    "uren": "24-32 uur per week",
+    "niveau": "HBO+/WO-",
+    "mobiliteit": "Regionaal, max 30 min reizen",
+    "sectoren": "ICT, onderwijs, consultancy",
+    "functietypen": "Senior Developer, Technical Writer, IT Trainer"
+  },
+  "visie_duurzaamheid": "Met adequate behandeling, structurele werkaanpassingen en geleidelijke opbouw is duurzame terugkeer in eigen functie realistisch binnen 6-12 maanden. Succesvoorwaarden: werkdrukbeheer, leidinggevende ondersteuning en regelmatige monitoring.",
+  "trajectplan": [
+    {
+      "actie": "Werkplekaanpassingen implementeren (rustige werkruimte, ergonomisch, thuiswerken faciliteiten)",
+      "verantwoordelijke": "Werkgever/Facility Management",
+      "termijn": "Binnen 2 weken",
+      "spoor": "1"
+    },
+    {
+      "actie": "Aangepast takenpakket opstellen (focus op reviews, documentatie, geen leidinggevende taken)",
+      "verantwoordelijke": "Direct leidinggevende i.o.v. HR",
+      "termijn": "Binnen 1 week",
+      "spoor": "1"
+    },
+    {
+      "actie": "Psychologische behandeling voortzetten en intensiveren",
+      "verantwoordelijke": "Werknemer/bedrijfsarts",
+      "termijn": "Doorlopend, evaluatie 6 weken",
+      "spoor": "1"
+    },
+    {
+      "actie": "Geleidelijke opbouw werktijden (15→20→25→30 uur)",
+      "verantwoordelijke": "Bedrijfsarts/leidinggevende",
+      "termijn": "Stappen per 4 weken",
+      "spoor": "1"
+    },
+    {
+      "actie": "Aanmelden re-integratiebedrijf voor 2e spoor begeleiding",
+      "verantwoordelijke": "Werkgever/HR",
+      "termijn": "Direct",
+      "spoor": "2"
+    },
+    {
+      "actie": "Maandelijkse evaluaties voortgang en welzijn",
+      "verantwoordelijke": "Bedrijfsarts/arbeidsdeskundige",
+      "termijn": "Elke 4 weken, 6 maanden",
+      "spoor": "1"
+    }
+  ],
+  "conclusies": [
+    {
+      "conclusie": "Werknemer is momenteel ongeschikt voor eigen werk als Software Architect",
+      "toelichting": "Door burn-out gerelateerde concentratieproblemen, verminderde stressbestendigheid en energetische beperkingen"
+    },
+    {
+      "conclusie": "Eigen werk is passend te maken met structurele aanpassingen",
+      "toelichting": "Urenreductie, aangepast takenpakket, werkplekaanpassingen en ondersteunende begeleiding maken terugkeer mogelijk"
+    },
+    {
+      "conclusie": "Tijdelijk alternatief werk binnen organisatie is mogelijk",
+      "toelichting": "Senior Developer, Technical Writer of Quality Assurance functies bieden minder complexiteit en stress"
+    },
+    {
+      "conclusie": "Re-integratie tweede spoor is geïndiceerd",
+      "toelichting": "Naast spoor 1 activiteiten ter voorbereiding op eventuele externe werkhervatting"
+    },
+    {
+      "conclusie": "Prognose voor volledig herstel is gunstig",
+      "toelichting": "Met adequate behandeling en structurele aanpassingen binnen 6-12 maanden mogelijk"
+    }
+  ],
+  "vervolg": [
+    "Rapport uitgebreid bespreken met werknemer en werkgever in gezamenlijke bijeenkomst",
+    "Implementatie werkplekaanpassingen en aangepast takenpakket binnen gestelde termijnen",
+    "Aanmelden geschikt re-integratiebedrijf voor tweede spoor begeleiding",
+    "Start geleidelijke opbouw werktijden volgens afgesproken schema",
+    "Maandelijkse monitoring door bedrijfsarts met rapportage aan stakeholders",
+    "Evaluatie na 12 weken voor bijstelling aanpak indien noodzakelijk",
+    "Rapport beschikbaar stellen aan behandelend psycholoog voor afstemming zorg",
+    "Planning follow-up arbeidsdeskundig onderzoek na 6 maanden"
+  ],
+  "bijlagen": [
+    "FML beoordeling Dr. M. Hendricks d.d. 01-03-2024",
+    "Functieomschrijving Software Architect Nederlandse ICT Solutions B.V.",
+    "Organisatieschema ICT Solutions B.V."
+  ],
+  "opmerkingen": null,
+  "disclaimer": "Dit rapport is tot stand gekomen na uitgebreide gesprekken met alle betrokkenen en analyse van beschikbare documentatie. Het rapport is gebaseerd op de situatie ten tijde van onderzoek. Werkgever en werknemer kunnen geen rechten ontlenen aan dit rapport. Voor actuele regelingen wordt verwezen naar UWV (www.uwv.nl) en Belastingdienst (www.belastingdienst.nl)."
+}

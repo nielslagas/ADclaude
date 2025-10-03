@@ -2,17 +2,23 @@
 import { RouterView } from 'vue-router'
 import NavBar from '@/components/NavBar.vue'
 import NotificationContainer from '@/components/NotificationContainer.vue'
+import PerformanceMonitor from '@/components/PerformanceMonitor.vue'
 </script>
 
 <template>
   <div id="app" class="app-layout">
+    <!-- Skip Navigation Link -->
+    <a href="#main-content" class="skip-link">
+      Ga naar hoofdinhoud
+    </a>
+
     <!-- Header -->
-    <header class="app-header">
+    <header class="app-header" role="banner">
       <NavBar />
     </header>
 
     <!-- Main Content -->
-    <main class="app-main">
+    <main id="main-content" class="app-main" role="main" tabindex="-1">
       <div class="container">
         <RouterView />
       </div>
@@ -45,6 +51,9 @@ import NotificationContainer from '@/components/NotificationContainer.vue'
 
     <!-- Notification System -->
     <NotificationContainer />
+    
+    <!-- Performance Monitor (development only) -->
+    <PerformanceMonitor />
   </div>
 </template>
 

@@ -59,6 +59,9 @@
               <span class="recording-status" :class="recording.status">
                 {{ getStatusLabel(recording.status) }}
               </span>
+              <span v-if="recording.metadata && recording.metadata.transcription_method" class="transcription-method" :class="recording.metadata.transcription_method">
+                {{ getTranscriptionMethodLabel(recording.metadata.transcription_method) }}
+              </span>
             </div>
             
             <div class="recording-actions">
@@ -101,8 +104,26 @@
             <p v-if="!transcriptionContent" class="no-transcription">
               Geen transcriptie beschikbaar
             </p>
-            <div v-else class="content-area">
-              {{ transcriptionContent }}
+            <div v-else>
+              <div class="transcription-header">
+                <span class="transcription-info">
+                  <span v-if="selectedRecording.metadata && selectedRecording.metadata.transcription_method"
+                    class="transcription-method-badge"
+                    :class="selectedRecording.metadata.transcription_method"
+                  >
+                    {{ getTranscriptionMethodLabel(selectedRecording.metadata.transcription_method) }}
+                  </span>
+                  <span v-if="selectedRecording.metadata && selectedRecording.metadata.transcription_length" class="transcription-length">
+                    {{ selectedRecording.metadata.transcription_length }} tekens
+                  </span>
+                  <span v-if="selectedRecording.metadata && selectedRecording.metadata.language" class="transcription-language">
+                    Taal: {{ selectedRecording.metadata.language === 'nl' ? 'Nederlands' : selectedRecording.metadata.language }}
+                  </span>
+                </span>
+              </div>
+              <div class="content-area">
+                {{ transcriptionContent }}
+              </div>
             </div>
             
             <div class="action-buttons">
@@ -255,8 +276,18 @@ export default {
         'failed': 'Mislukt',
         'error': 'Fout'
       };
-      
+
       return statusMap[status] || status;
+    },
+
+    getTranscriptionMethodLabel(method) {
+      const methodMap = {
+        'claude': 'Claude AI',
+        'whisper': 'Whisper',
+        'unknown': 'Standaard'
+      };
+
+      return methodMap[method] || method;
     }
   }
 }
@@ -400,6 +431,23 @@ export default {
   color: #842029;
 }
 
+.transcription-method {
+  font-size: 13px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-left: 10px;
+}
+
+.transcription-method.claude {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.transcription-method.whisper {
+  background-color: #f0fdfa;
+  color: #0f766e;
+}
+
 .recording-actions {
   display: flex;
   gap: 8px;
@@ -483,6 +531,40 @@ export default {
   font-style: italic;
 }
 
+.transcription-header {
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.transcription-info {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.transcription-method-badge,
+.transcription-length,
+.transcription-language {
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+.transcription-method-badge.claude {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  font-weight: 500;
+}
+
+.transcription-method-badge.whisper {
+  background-color: #f0fdfa;
+  color: #0f766e;
+  font-weight: 500;
+}
+
 .content-area {
   background-color: #f8f9fa;
   padding: 15px;
@@ -491,6 +573,8 @@ export default {
   margin-bottom: 20px;
   max-height: 40vh;
   overflow-y: auto;
+  line-height: 1.6;
+  font-size: 15px;
 }
 
 .action-buttons {
