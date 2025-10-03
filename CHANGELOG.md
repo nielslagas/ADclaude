@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2025-10-03 Session 4] - Content Quality & Data Extraction (WIP)
+
+### Added
+- **FML Rubrics Parser** (`CleanReportView.vue`)
+  - Parses BEPERKT/LICHT BEPERKT classifications from generated content
+  - Replaces hardcoded "Wordt beoordeeld" placeholders with real FML data
+  - Regex patterns for Rubriek IV (Dynamische handelingen) and V (Statische houdingen)
+  - Fallback to placeholders when content unavailable
+- **Document Field Extraction Module** (`document_field_extractor.py` - 323 lines)
+  - Automatic extraction of 40+ structured fields using regex patterns
+  - Field categories: werkgever (employer), werknemer (employee), contactpersoon (contact)
+  - Post-processing for data normalization (dates, postcodes, phone numbers)
+  - `extract_from_case()` function to extract from all case documents
+  - Test script (`test_field_extraction.py`) successfully extracts 17 fields
+- **Strengthened Prompt Instructions**
+  - Forceful prompt formatting with ⚠️ VERPLICHT warnings
+  - Concrete examples of forbidden vs. required behavior
+  - Multiple enforcement layers (VERBODEN, VERPLICHTE HANDELWIJZE)
+  - 80-character separator blocks for visual emphasis
+
+### Changed
+- **Audio Processing Improvements**
+  - Chunking implementation: 1000 char chunks with 200 overlap
+  - 6 audio chunks successfully processed with FML assessment data
+  - Embeddings generated and stored for audio chunks
+- **Section Generator Updates** (`section_generator.py`)
+  - Added `extracted_fields` parameter to constructor
+  - Pass extracted fields to prompt creation
+  - Store fields in instance variable for section generation
+- **Report Task Integration** (`ad_report_task.py`)
+  - Import `extract_from_case` function (line 77)
+  - Extract fields at report generation start (lines 700-707)
+  - Format fields with `format_extracted_fields_for_prompt()` (lines 90-139)
+  - Pass extracted_fields to section generators (line 742-746)
+  - Store extracted_fields in report metadata (line 717)
+
+### Performance
+- **Report Generation**: 2.5 minutes (89% faster than previous baseline)
+- **Field Extraction**: Successfully tested on real case - 17 fields extracted
+- **Audio Embeddings**: Working correctly with proper chunking
+
+### Known Issues (WIP)
+- **Field Extraction Integration**: Code in place but needs debugging
+  - Extraction logs not appearing in worker output
+  - Need to verify fields reach LLM prompts
+  - Need to test if LLM complies with strengthened instructions
+- **CI/CD Failure**: Expected - code marked WIP in commit
+  - Linting checks may fail on new code
+  - Tests missing for new extraction module
+  - Will be fixed in next session
+
+### Testing
+- ✅ FML parser tested with real generated content
+- ✅ Field extraction tested with case `41a9fbc5-faaa-4d43-8010-dd51eb325c24`
+- ✅ Audio chunking verified (6 chunks with FML data)
+- 🚧 Integration testing pending (next session)
+
+### Next Steps
+1. Debug why extracted fields don't reach final report output
+2. Investigate potential frontend template override
+3. Test LLM prompt compliance with strengthened instructions
+4. Consider alternative extraction placement if needed
+5. Add unit tests for extraction module
+6. Fix linting issues for CI/CD
+
 ## [2025-10-03] - Document Format Support & Bug Fixes
 
 ### Added

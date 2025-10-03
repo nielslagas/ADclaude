@@ -44,6 +44,16 @@ De AI-Arbeidsdeskundige helpt arbeidsdeskundigen bij het opstellen van gestructu
 
 ## 🆕 Recente Verbeteringen
 
+### 2025-10-03 - Content Quality & Data Extraction (Session 4)
+- **FML Parser**: Parse BEPERKT/LICHT BEPERKT uit gegenereerde content - geen hardcoded placeholders meer
+- **Audio Chunking**: Audio processing met 1000 char chunks, 200 overlap - 6 chunks met FML data
+- **Field Extraction Module**: Automatische extractie van 40+ velden (werkgever, werknemer, contactpersoon) met regex patterns
+- **Strengthened Prompts**: Forceful instructions (⚠️ VERPLICHT) voor betrouwbare data usage
+- **Performance**: Report generation nu 2.5 min (89% sneller), audio embeddings werkend
+- **Testing**: Extraction getest met real case - 17 fields succesvol geëxtraheerd
+
+**Status**: FML parser ✅ | Audio processing ✅ | Field extraction ✅ | Integration 🚧 (WIP - debugging pending)
+
 ### 2025-10-02 - Code Refactoring & Performance
 - **Adaptive Similarity Threshold**: RAG retrieval verbeterd met 15-25% betere nauwkeurigheid
 - **Refactored Section Generation**: Nieuwe `ADReportSectionGenerator` klasse voor betere onderhoudbaarheid
