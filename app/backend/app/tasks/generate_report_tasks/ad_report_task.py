@@ -74,6 +74,7 @@ Gebruik classificaties: normaal/beperkt/sterk beperkt met concrete onderbouwing.
     
     return formatted_text
 from app.core.config import settings
+from app.utils.document_field_extractor import extract_from_case
 
 # Initialize services
 db_service = get_database_service()
@@ -86,20 +87,73 @@ except Exception as e:
     logger.warning(f"RAG pipeline import failed, will use fallback approach. Error: {str(e)}")
     HAS_RAG = False
 
-def create_ad_specific_prompt(section_id: str, section_info: dict, user_profile: dict = None, fml_context: dict = None) -> str:
+def format_extracted_fields_for_prompt(extracted_fields: Dict[str, str], field_prefix: str) -> str:
+    """
+    Format extracted fields for inclusion in prompts with STRONG enforcement instructions.
+
+    Args:
+        extracted_fields: Dictionary of all extracted fields
+        field_prefix: Prefix to filter fields (e.g., 'werkgever_', 'werknemer_')
+
+    Returns:
+        Formatted string with extracted data and forceful instructions
+    """
+    if not extracted_fields:
+        return ""
+
+    relevant_fields = {k: v for k, v in extracted_fields.items() if k.startswith(field_prefix)}
+
+    if not relevant_fields:
+        return ""
+
+    formatted = "\n\n" + "="*80 + "\n"
+    formatted += "⚠️  KRITISCHE VERPLICHTING - VERPLICHT GEBRUIK VAN GEËXTRAHEERDE DATA  ⚠️\n"
+    formatted += "="*80 + "\n\n"
+
+    formatted += "De onderstaande gegevens zijn AUTOMATISCH GEËXTRAHEERD uit de geüploade documenten.\n"
+    formatted += "Deze data is VERPLICHT te gebruiken. Dit is GEEN suggestie - het is een STRIKTE VERPLICHTING.\n\n"
+
+    formatted += "GEËXTRAHEERDE EN GEVERIFIEERDE GEGEVENS:\n"
+    formatted += "-" * 40 + "\n"
+    for field_name, value in relevant_fields.items():
+        formatted += f"• {field_name}: {value}\n"
+    formatted += "-" * 40 + "\n\n"
+
+    formatted += "🚫 ABSOLUUT VERBODEN:\n"
+    formatted += "• Deze geëxtraheerde data NEGEREN of OVERSLAAN\n"
+    formatted += "• Deze geëxtraheerde data VERVANGEN door placeholders zoals '[Naam]', '[Postcode]', 'Wordt bepaald', etc.\n"
+    formatted += "• Deze geëxtraheerde data AANPASSEN of HERSCHRIJVEN\n"
+    formatted += "• NIEUWE data verzinnen voor velden die al geëxtraheerd zijn\n\n"
+
+    formatted += "✅ VERPLICHTE HANDELWIJZE:\n"
+    formatted += "• Gebruik EXACT deze geëxtraheerde waarden in je antwoord\n"
+    formatted += "• Kopieer de waarden LETTERLIJK zoals ze zijn geëxtraheerd\n"
+    formatted += "• Als werkgever_postcode '5443 PR' is, schrijf dan PRECIES '5443 PR' - NIET '[Postcode]' of '5443PR'\n"
+    formatted += "• Als contactpersoon_naam 'Rianne Hendriks' is, schrijf dan PRECIES 'Rianne Hendriks' - NIET '[Naam]'\n\n"
+
+    formatted += "ℹ️  Genereer ALLEEN aanvullende data voor velden die NIET in bovenstaande lijst staan.\n"
+    formatted += "Voor alle andere velden: gebruik VERPLICHT de geëxtraheerde waarden.\n\n"
+
+    formatted += "="*80 + "\n\n"
+
+    return formatted
+
+
+def create_ad_specific_prompt(section_id: str, section_info: dict, user_profile: dict = None, fml_context: dict = None, extracted_fields: dict = None) -> str:
     """
     Create AD-specific prompts based on professional report analysis
-    
+
     Args:
         section_id: The section being generated
         section_info: Section metadata from template
         user_profile: User profile information
         fml_context: FML rubrieken context if applicable
-        
+        extracted_fields: Extracted structured fields from documents
+
     Returns:
         Specialized prompt for AD report section
     """
-    
+
     # Get report base date for reference
     current_date = datetime.utcnow().strftime("%d-%m-%Y")
     
@@ -283,63 +337,63 @@ SPECIFIEKE INSTRUCTIES VOOR VRAAGSTELLING:
 """
     
     elif section_id == "gegevensverzameling_werkgever":
-        section_prompt = """
+        # Add extracted werkgever fields to prompt
+        extracted_data = format_extracted_fields_for_prompt(extracted_fields or {}, "werkgever_")
+        extracted_data += format_extracted_fields_for_prompt(extracted_fields or {}, "contactpersoon_")
+        extracted_data += format_extracted_fields_for_prompt(extracted_fields or {}, "kvk")
+        extracted_data += format_extracted_fields_for_prompt(extracted_fields or {}, "btw")
+        extracted_data += format_extracted_fields_for_prompt(extracted_fields or {}, "arbodienst")
+
+        section_prompt = f"""
 SPECIFIEKE INSTRUCTIES VOOR GEGEVENS WERKGEVER:
-GENEREER REALISTISCHE BEDRIJFSGEGEVENS en plaats GESTRUCTUREERDE MARKERS:
+{extracted_data}
 
-VEREISTE STRUCTUUR (gebruik deze EXACTE format voor extractie):
-werkgever_naam: [Bestaand Nederlands bedrijf]
-contactpersoon_werkgever: [Volledige naam Nederlandse contactpersoon]
-functie_contactpersoon: [Specifieke functietitel zoals HR Manager, Teamleider]
-werkgever_adres: [Complete Nederlandse straatnaam + huisnummer]
-werkgever_postcode: [Nederlandse postcode format 1234AB]
-werkgever_plaats: [Nederlandse stad/plaats]
-werkgever_telefoon: [Nederlands telefoonnummer 010-1234567]
-werkgever_email: [professioneel@bedrijf.nl format]
-bedrijfstak: [Specifieke sector: verzekeringen, zorg, industrie, etc.]
-bedrijfsomvang: [Concreet aantal zoals "150 medewerkers"]
+STRUCTUREER DE OUTPUT MET DEZE FIELD NAMES:
+werkgever_naam: [Naam uit geëxtraheerde data of bedrijf uit documenten]
+contactpersoon_werkgever: [Naam uit geëxtraheerde data]
+functie_contactpersoon: [Functie uit geëxtraheerde data]
+werkgever_adres: [Adres uit geëxtraheerde data]
+werkgever_postcode: [Postcode uit geëxtraheerde data]
+werkgever_plaats: [Plaats uit geëxtraheerde data]
+werkgever_telefoon: [Telefoon uit geëxtraheerde data]
+werkgever_email: [Email uit geëxtraheerde data]
+bedrijfstak: [Sector uit documenten of afleiden uit bedrijfsnaam]
+bedrijfsomvang: [Aantal medewerkers uit documenten of schatten]
 
-VOORBEELD FORMAT:
-werkgever_naam: VerzekeringsMaatschappij Nederland BV
-contactpersoon_werkgever: Sandra Jansen
-functie_contactpersoon: HR Manager
-werkgever_adres: Wilhelmina van Pruisenweg 35
-werkgever_postcode: 2595AN
-werkgever_plaats: Den Haag
-
-VERBODEN: [Te bepalen], [Bedrijfsadres], placeholders
-VEREIST: Complete Nederlandse gegevens met EXACTE field names voor extractie
+KRITISCH: Als data geëxtraheerd is, gebruik deze EXACT. Genereer ALLEEN ontbrekende velden.
+VERBODEN: Geëxtraheerde data vervangen door placeholders of generieke waarden.
 """
     
     elif section_id == "gegevensverzameling_werknemer":
-        section_prompt = """
+        # Add extracted werknemer fields to prompt
+        extracted_data = format_extracted_fields_for_prompt(extracted_fields or {}, "werknemer_")
+        extracted_data += format_extracted_fields_for_prompt(extracted_fields or {}, "geboortedatum")
+        extracted_data += format_extracted_fields_for_prompt(extracted_fields or {}, "functie_")
+        extracted_data += format_extracted_fields_for_prompt(extracted_fields or {}, "datum_in_dienst")
+        extracted_data += format_extracted_fields_for_prompt(extracted_fields or {}, "eerste_ziektedag")
+
+        section_prompt = f"""
 SPECIFIEKE INSTRUCTIES VOOR GEGEVENS WERKNEMER:
-GENEREER COMPLETE GEGEVENS met GESTRUCTUREERDE MARKERS:
+{extracted_data}
 
-VEREISTE STRUCTUUR (gebruik deze EXACTE field names):
-werknemer_naam: [Volledige Nederlandse naam]
-geboortedatum: [DD-MM-YYYY format]
-werknemer_adres: [Complete straatnaam + huisnummer]
-werknemer_postcode: [Nederlandse postcode 1234AB]
-werknemer_plaats: [Nederlandse stad]
-werknemer_telefoon: [Nederlands telefoonnummer]
-werknemer_email: [persoonlijk@email.nl]
+STRUCTUREER DE OUTPUT MET DEZE FIELD NAMES:
+werknemer_naam: [Naam uit geëxtraheerde data]
+geboortedatum: [Geboortedatum uit geëxtraheerde data, format DD-MM-YYYY]
+werknemer_adres: [Adres uit geëxtraheerde data]
+werknemer_postcode: [Postcode uit geëxtraheerde data]
+werknemer_plaats: [Plaats uit geëxtraheerde data]
+werknemer_telefoon: [Telefoon uit geëxtraheerde data]
+werknemer_email: [Email uit geëxtraheerde data]
 
-OPLEIDINGEN EN ERVARING:
-- Opleidingsachtergrond: [Concrete Nederlandse diploma's/certificaten]
-- Arbeidsverleden: [10-20 jaar werkervaring met specifieke functies en werkgevers]
-- Huidige functie: [Exacte functietitel en belangrijkste taken]
-- Dienstverband: [Contracttype, jaren in dienst, uren per week]
+DIENSTVERBAND EN FUNCTIE:
+- Functie: [Functie uit geëxtraheerde data]
+- Datum in dienst: [Datum uit geëxtraheerde data]
+- Eerste ziektedag: [Datum uit geëxtraheerde data]
+- Opleidingsachtergrond: [Uit documenten of markeer als "Wordt verzameld tijdens intake"]
+- Arbeidsverleden: [Uit documenten of markeer als "Wordt besproken tijdens gesprek"]
 
-VOORBEELD FORMAT:
-werknemer_naam: Johannes van der Berg
-geboortedatum: 15-03-1978
-werknemer_adres: Hoofdstraat 123
-werknemer_postcode: 2000AB
-werknemer_plaats: Haarlem
-
-VERBODEN: "wordt verzameld", [Woonadres], placeholders
-VEREIST: Complete gegevens met EXACTE field names voor extractie
+KRITISCH: Als data geëxtraheerd is, gebruik deze EXACT. Genereer ALLEEN ontbrekende velden.
+VERBODEN: Geëxtraheerde data vervangen door placeholders.
 """
     
     elif section_id == "samenvatting":
@@ -665,6 +719,15 @@ def generate_enhanced_ad_report(report_id: str):
         document_ids = [doc["id"] for doc in documents]
         logger.info(f"Found {len(document_ids)} processed documents")
 
+        # Extract structured fields from documents
+        logger.info(f"Extracting structured fields from case {case_id}")
+        extracted_fields = extract_from_case(case_id, db_service)
+        logger.info(f"✓ Extracted {len(extracted_fields)} structured fields from documents")
+
+        # Log extracted fields for debugging
+        if extracted_fields:
+            logger.info(f"Extracted fields: {', '.join(extracted_fields.keys())}")
+
         # Initialize report content and metadata
         report_content = OrderedDict()  # Use OrderedDict for proper section ordering
         report_metadata = {
@@ -673,6 +736,7 @@ def generate_enhanced_ad_report(report_id: str):
             "template_version": template.get("version", "1.0"),
             "document_ids": document_ids,
             "user_profile": user_profile,
+            "extracted_fields": extracted_fields,  # Store extracted fields in metadata
             "sections": {},
             "quality_checkpoints": template.get("quality_checkpoints", []),
             "fml_rubrieken_generated": False
@@ -699,7 +763,8 @@ def generate_enhanced_ad_report(report_id: str):
 
         section_generator = ADReportSectionGenerator(
             user_profile=user_profile,
-            fml_context=fml_context
+            fml_context=fml_context,
+            extracted_fields=extracted_fields
         )
 
         # Record total report generation start time

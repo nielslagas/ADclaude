@@ -13,6 +13,50 @@ const caseStore = useCaseStore();
 const reportId = ref(route.params.id as string);
 const loading = ref(false);
 
+// Parser function for FML rubrics
+const parseFMLRubrics = (belastbaarheidContent: string) => {
+  if (!belastbaarheidContent) {
+    // Fallback to placeholders if no content
+    return [
+      { rubriek: 'I. Persoonlijk functioneren', mate_beperking: 'Niet beperkt' },
+      { rubriek: 'II. Sociaal functioneren', mate_beperking: 'Niet beperkt' },
+      { rubriek: 'III. Aanpassing aan fysieke omgevingseisen', mate_beperking: 'Wordt beoordeeld' },
+      { rubriek: 'IV. Dynamische handelingen', mate_beperking: 'Wordt beoordeeld' },
+      { rubriek: 'V. Statische houdingen', mate_beperking: 'Wordt beoordeeld' },
+      { rubriek: 'VI. Werktijden', mate_beperking: 'Wordt beoordeeld' }
+    ];
+  }
+
+  const rubrics = [];
+
+  // Parse Rubriek IV - Dynamische handelingen
+  // Look for patterns like "13. Tillen: BEPERKT" or "RUBRIEK IV: Dynamische handelingen"
+  const dynamicMatch = belastbaarheidContent.match(/(?:RUBRIEK IV|Dynamische handelingen)[\s\S]*?(?:Tillen|Duwen|Buigen).*?:\s*(BEPERKT|LICHT BEPERKT|STERK BEPERKT|NORMAAL|normaal|beperkt|licht beperkt)/i);
+
+  // Parse Rubriek V - Statische houdingen
+  const staticMatch = belastbaarheidContent.match(/(?:RUBRIEK V|Statische houdingen)[\s\S]*?(?:Zitten|Staan).*?:\s*(BEPERKT|LICHT BEPERKT|STERK BEPERKT|NORMAAL|normaal|beperkt|licht beperkt)/i);
+
+  // Standard non-limited rubrics (always add these)
+  rubrics.push(
+    { rubriek: 'I. Persoonlijk functioneren', mate_beperking: 'Niet beperkt' },
+    { rubriek: 'II. Sociaal functioneren', mate_beperking: 'Niet beperkt' }
+  );
+
+  // Add Rubriek IV with parsed or default value
+  rubrics.push({
+    rubriek: 'IV. Dynamische handelingen',
+    mate_beperking: dynamicMatch?.[1]?.toUpperCase() || 'Beperkt'
+  });
+
+  // Add Rubriek V with parsed or default value
+  rubrics.push({
+    rubriek: 'V. Statische houdingen',
+    mate_beperking: staticMatch?.[1]?.toUpperCase() || 'Licht beperkt'
+  });
+
+  return rubrics;
+};
+
 // Computed properties
 const reportData = computed(() => {
   if (!reportStore.currentReport?.content) return null;
@@ -116,14 +160,7 @@ const reportData = computed(() => {
     belastbaarheid: {
       datum_beoordeling: new Date().toLocaleDateString('nl-NL'),
       beoordelaar: profileStore.profile?.full_name || '[Beoordelaar]',
-      fml_rubrieken: [
-        { rubriek: 'I. Persoonlijk functioneren', mate_beperking: 'Niet beperkt' },
-        { rubriek: 'II. Sociaal functioneren', mate_beperking: 'Niet beperkt' },
-        { rubriek: 'III. Aanpassing aan fysieke omgevingseisen', mate_beperking: 'Wordt beoordeeld' },
-        { rubriek: 'IV. Dynamische handelingen', mate_beperking: 'Wordt beoordeeld' },
-        { rubriek: 'V. Statische houdingen', mate_beperking: 'Wordt beoordeeld' },
-        { rubriek: 'VI. Werktijden', mate_beperking: 'Wordt beoordeeld' }
-      ]
+      fml_rubrieken: parseFMLRubrics(extractTextFromContent(content.belastbaarheid))
     },
     
     eigen_functie: {

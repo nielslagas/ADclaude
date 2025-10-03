@@ -16,16 +16,18 @@ class ADReportSectionGenerator:
     prompts and content generation strategies.
     """
     
-    def __init__(self, user_profile: Optional[Dict[str, Any]] = None, fml_context: Optional[Dict[str, Any]] = None):
+    def __init__(self, user_profile: Optional[Dict[str, Any]] = None, fml_context: Optional[Dict[str, Any]] = None, extracted_fields: Optional[Dict[str, str]] = None):
         """
         Initialize the section generator.
-        
+
         Args:
             user_profile: User profile information
             fml_context: FML rubrieken context
+            extracted_fields: Extracted structured fields from documents
         """
         self.user_profile = user_profile
         self.fml_context = fml_context
+        self.extracted_fields = extracted_fields or {}
         self.db_service = get_database_service()
         self.has_rag = self._check_rag_availability()
     
@@ -106,7 +108,8 @@ class ADReportSectionGenerator:
             section_id=section_id,
             section_info=section_info,
             user_profile=self.user_profile,
-            fml_context=section_context
+            fml_context=section_context,
+            extracted_fields=self.extracted_fields
         )
     
     def _try_rag_generation(
