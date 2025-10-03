@@ -398,8 +398,11 @@ const createEnhancedADReport = async () => {
     error.value = 'Upload en verwerk eerst documenten voordat je een rapport kunt genereren';
     return;
   }
-  
-  const processedDocs = caseStore.documents.filter(doc => doc.status === 'processed');
+
+  // Accept both 'processed' (text extracted) and 'enhanced' (embeddings generated)
+  const processedDocs = caseStore.documents.filter(doc =>
+    doc.status === 'processed' || doc.status === 'enhanced'
+  );
   if (processedDocs.length === 0) {
     error.value = 'Er zijn geen verwerkte documenten beschikbaar. Wacht tot documentverwerking is voltooid.';
     return;

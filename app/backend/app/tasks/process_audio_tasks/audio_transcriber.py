@@ -249,10 +249,91 @@ def transcribe_audio(self, document_id: str, model_name: str = "whisper-1", lang
                 document_id,
                 {"content": transcription}
             )
-            
-            # Mark document as processed
+
+            # Create chunks for RAG retrieval (CRITICAL FIX)
+            # Audio transcripts need to be chunked just like documents
+            logger.info(f"Creating chunks for audio transcription (length: {len(transcription)} chars)")
+
+            # Chunk size for audio: ~1000 chars with 200 char overlap
+            # This ensures complete context for RAG retrieval
+            chunk_size = 1000
+            overlap = 200
+            chunks_created = 0
+
+            # Simple chunking strategy for audio transcripts
+            if len(transcription) <= chunk_size:
+                # Single chunk for short transcripts
+                chunk_metadata = {
+                    "source": "audio_transcription",
+                    "audio_file": os.path.basename(file_path),
+                    "chunk_type": "full_transcript"
+                }
+
+                chunk_record = db_service.create_document_chunk(
+                    document_id=document_id,
+                    content=transcription,
+                    chunk_index=0,
+                    metadata=chunk_metadata
+                )
+
+                if chunk_record:
+                    chunks_created = 1
+                    logger.info(f"Created single chunk for audio document {document_id}")
+            else:
+                # Multiple chunks with overlap for longer transcripts
+                start = 0
+                chunk_index = 0
+
+                while start < len(transcription):
+                    end = min(start + chunk_size, len(transcription))
+                    chunk_text = transcription[start:end]
+
+                    chunk_metadata = {
+                        "source": "audio_transcription",
+                        "audio_file": os.path.basename(file_path),
+                        "chunk_type": "partial_transcript",
+                        "chunk_index": chunk_index,
+                        "total_length": len(transcription)
+                    }
+
+                    chunk_record = db_service.create_document_chunk(
+                        document_id=document_id,
+                        content=chunk_text,
+                        chunk_index=chunk_index,
+                        metadata=chunk_metadata
+                    )
+
+                    if chunk_record:
+                        chunks_created += 1
+                        logger.info(f"Created chunk {chunk_index} for audio document {document_id}")
+
+                    # Move to next chunk with overlap
+                    start = end - overlap if end < len(transcription) else end
+                    chunk_index += 1
+
+            logger.info(f"Created {chunks_created} chunks for audio document {document_id}")
+
+            # Mark document as processed (chunks will get embeddings asynchronously)
             db_service.update_document_status(document_id, "processed")
-            logger.info(f"Document {document_id} marked as processed")
+            logger.info(f"Audio document {document_id} marked as processed with {chunks_created} chunks")
+
+            # Trigger async embedding generation (following document workflow pattern)
+            try:
+                # Get the chunk IDs we just created
+                chunks = db_service.get_document_chunks(document_id)
+                chunk_ids = [chunk["id"] for chunk in chunks]
+
+                logger.info(f"Scheduling embedding generation for {len(chunk_ids)} audio chunks")
+
+                from app.celery_worker import celery
+                celery.send_task(
+                    "app.tasks.process_document_tasks.document_processor_hybrid.generate_document_embeddings",
+                    args=[document_id, chunk_ids]
+                )
+                logger.info(f"Scheduled embedding generation for audio document {document_id}")
+            except Exception as embed_error:
+                logger.warning(f"Could not schedule embedding generation: {str(embed_error)}")
+
         except Exception as e:
             logger.error(f"Error updating document: {str(e)}")
             return {"status": "error", "message": f"Error updating document: {str(e)}"}
@@ -261,7 +342,8 @@ def transcribe_audio(self, document_id: str, model_name: str = "whisper-1", lang
         return {
             "status": "success",
             "document_id": document_id,
-            "transcription_length": len(transcription)
+            "transcription_length": len(transcription),
+            "chunks_created": chunks_created
         }
 
     except Exception as e:
